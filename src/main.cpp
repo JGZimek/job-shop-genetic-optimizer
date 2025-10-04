@@ -59,5 +59,16 @@ int main() {
         std::cout << "Individual " << i << ": makespan = " << ms << "\n";
     }
 
+    // --- Test selekcji turniejowej ---
+    size_t tournament_size = 3;
+    auto parent = jobshop::tournament_selection(population, instance, tournament_size, rng);
+    int parent_makespan = jobshop::calculate_makespan(instance, parent);
+    std::cout << "\nSelected parent (tournament):\n";
+    for (const auto& op : parent.operation_sequence) {
+        std::cout << "(" << op.first << "," << op.second << ") ";
+    }
+    std::cout << "\nParent makespan: " << parent_makespan << std::endl;
+
+
     return 0;
 }

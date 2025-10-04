@@ -22,4 +22,22 @@ std::vector<Solution> generate_population(const JobShopInstance& instance, size_
     return population;
 }
 
+Solution tournament_selection(const std::vector<Solution>& population, const JobShopInstance& instance, size_t tournament_size, std::mt19937& rng) {
+    std::uniform_int_distribution<size_t> dist(0, population.size() - 1);
+    Solution best = population[dist(rng)];
+    Solution best_copy = best;
+    int best_makespan = calculate_makespan(instance, best_copy);
+    for (size_t i = 1; i < tournament_size; ++i) {
+        const Solution& contender = population[dist(rng)];
+        Solution contender_copy = contender;
+        int contender_makespan = calculate_makespan(instance, contender_copy);
+        if (contender_makespan < best_makespan) {
+            best = contender;
+            best_makespan = contender_makespan;
+        }
+    }
+    return best;
+}
+
+
 } // namespace jobshop

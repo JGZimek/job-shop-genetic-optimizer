@@ -69,6 +69,27 @@ int main() {
     }
     std::cout << "\nParent makespan: " << parent_makespan << std::endl;
 
+    // Wybierz dwóch różnych rodziców
+    std::uniform_int_distribution<size_t> dist(0, population.size() - 1);
+    size_t idx1 = dist(rng);
+    size_t idx2 = dist(rng);
+    while (idx2 == idx1) idx2 = dist(rng);
+
+    const auto& parent1 = population[idx1];
+    const auto& parent2 = population[idx2];
+
+    jobshop::Solution child = jobshop::order_crossover(parent1, parent2, rng);
+    int child_makespan = jobshop::calculate_makespan(instance, child);
+
+    std::cout << "\nCrossover (OX) between Individual " << idx1 << " and Individual " << idx2 << ":\n";
+    std::cout << "Child sequence:\n";
+    for (const auto& op : child.operation_sequence) {
+        std::cout << "(" << op.first << "," << op.second << ") ";
+    }
+    std::cout << std::endl;
+    std::cout << "Child makespan: " << child_makespan << std::endl;
+
+
 
     return 0;
 }

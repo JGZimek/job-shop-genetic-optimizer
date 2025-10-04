@@ -17,6 +17,9 @@ std::vector<Solution> generate_population(const JobShopInstance& instance, size_
 // Wybór turniejowy
 Solution tournament_selection(const std::vector<Solution>& population, const JobShopInstance& instance, size_t tournament_size, std::mt19937& rng);
 
+// Krzyżowanie porządkowe (Order Crossover - OX)
+Solution order_crossover(const Solution& parent1, const Solution& parent2, std::mt19937& rng);
+
 
 } // namespace jobshop
 

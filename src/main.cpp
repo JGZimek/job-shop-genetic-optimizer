@@ -59,7 +59,7 @@ int main() {
         std::cout << "Individual " << i << ": makespan = " << ms << "\n";
     }
 
-    // --- Test selekcji turniejowej ---
+    // Test selekcji turniejowej
     size_t tournament_size = 3;
     auto parent = jobshop::tournament_selection(population, instance, tournament_size, rng);
     int parent_makespan = jobshop::calculate_makespan(instance, parent);
@@ -89,7 +89,15 @@ int main() {
     std::cout << std::endl;
     std::cout << "Child makespan: " << child_makespan << std::endl;
 
-
+    // Mutacja dziecka
+    jobshop::mutate_swap(child, rng);
+    int mutated_makespan = jobshop::calculate_makespan(instance, child);
+    std::cout << "\nChild after mutation (swap):\n";
+    for (const auto& op : child.operation_sequence) {
+        std::cout << "(" << op.first << "," << op.second << ") ";
+    }
+    std::cout << std::endl;
+    std::cout << "Mutated child makespan: " << mutated_makespan << std::endl;
 
     return 0;
 }

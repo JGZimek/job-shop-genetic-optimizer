@@ -20,6 +20,8 @@ Solution tournament_selection(const std::vector<Solution>& population, const Job
 // Krzyżowanie porządkowe (Order Crossover - OX)
 Solution order_crossover(const Solution& parent1, const Solution& parent2, std::mt19937& rng);
 
+// Mutacja przez zamianę dwóch operacji miejscami
+void mutate_swap(Solution& solution, std::mt19937& rng);
 
 } // namespace jobshop
 

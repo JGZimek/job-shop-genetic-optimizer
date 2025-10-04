@@ -82,5 +82,15 @@ Solution order_crossover(const Solution& parent1, const Solution& parent2, std::
     return child;
 }
 
+void mutate_swap(Solution& solution, std::mt19937& rng) {
+    size_t n = solution.operation_sequence.size();
+    if (n < 2) return;
+    std::uniform_int_distribution<size_t> dist(0, n - 1);
+    size_t i = dist(rng);
+    size_t j = dist(rng);
+    while (j == i) j = dist(rng);
+    std::swap(solution.operation_sequence[i], solution.operation_sequence[j]);
+}
+
 
 } // namespace jobshop

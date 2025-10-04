@@ -1,6 +1,7 @@
 #include <iostream>
 #include "jobshop/core.hpp"
 #include "jobshop/file_io.hpp"
+#include "jobshop/solution.hpp"
 
 int main() {
     // Ścieżka do przykładowej instancji
@@ -25,5 +26,25 @@ int main() {
         }
         std::cout << "\n";
     }
+
+    // Tworzymy prostą kolejność operacji: po kolei dla każdego zadania
+    jobshop::Solution solution;
+    for (const auto& job : instance.jobs) {
+        for (size_t op_id = 0; op_id < job.operations.size(); ++op_id) {
+            solution.operation_sequence.emplace_back(job.job_id, op_id);
+        }
+    }
+
+    // Obliczamy makespan
+    int makespan = jobshop::calculate_makespan(instance, solution);
+    std::cout << "\nCalculated makespan: " << makespan << "\n";
+
+    // Wypisz czasy startu operacji
+    std::cout << "Operation start times:" << std::endl;
+    for (size_t i = 0; i < solution.operation_sequence.size(); ++i) {
+        auto [job_id, op_id] = solution.operation_sequence[i];
+        std::cout << "Job " << job_id << ", Op " << op_id << ": " << solution.start_times[i] << std::endl;
+    }
+
     return 0;
 }

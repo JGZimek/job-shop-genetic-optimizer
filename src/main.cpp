@@ -1,4 +1,6 @@
 #include <iostream>
+#include <random>
+#include "jobshop/genetic.hpp"
 #include "jobshop/core.hpp"
 #include "jobshop/file_io.hpp"
 #include "jobshop/solution.hpp"
@@ -44,6 +46,17 @@ int main() {
     for (size_t i = 0; i < solution.operation_sequence.size(); ++i) {
         auto [job_id, op_id] = solution.operation_sequence[i];
         std::cout << "Job " << job_id << ", Op " << op_id << ": " << solution.start_times[i] << std::endl;
+    }
+
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    size_t population_size = 5;
+    auto population = jobshop::generate_population(instance, population_size, rng);
+
+    std::cout << "\nRandom population (" << population_size << "):\n";
+    for (size_t i = 0; i < population.size(); ++i) {
+        int ms = jobshop::calculate_makespan(instance, population[i]);
+        std::cout << "Individual " << i << ": makespan = " << ms << "\n";
     }
 
     return 0;

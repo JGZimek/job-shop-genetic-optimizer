@@ -1,0 +1,19 @@
+#ifndef JOBSHOP_GENETIC_HPP
+#define JOBSHOP_GENETIC_HPP
+
+#include "jobshop/core.hpp"
+#include "jobshop/solution.hpp"
+#include <vector>
+#include <random>
+
+namespace jobshop {
+
+// Generuje losową permutację operacji
+Solution generate_random_solution(const JobShopInstance& instance, std::mt19937& rng);
+
+// Generuje całą populację
+std::vector<Solution> generate_population(const JobShopInstance& instance, size_t population_size, std::mt19937& rng);
+
+} // namespace jobshop
+
+#endif // JOBSHOP_GENETIC_HPP

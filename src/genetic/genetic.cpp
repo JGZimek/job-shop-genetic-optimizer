@@ -92,5 +92,44 @@ void mutate_swap(Solution& solution, std::mt19937& rng) {
     std::swap(solution.operation_sequence[i], solution.operation_sequence[j]);
 }
 
+Solution run_genetic(
+    const JobShopInstance& instance,
+    size_t population_size,
+    size_t generations,
+    size_t tournament_size,
+    double mutation_prob,
+    std::mt19937& rng
+) {
+    auto population = generate_population(instance, population_size, rng);
+    Solution best_overall = population[0];
+    int best_makespan = calculate_makespan(instance, best_overall);
+
+    for (size_t gen = 0; gen < generations; ++gen) {
+        std::vector<Solution> new_population;
+        while (new_population.size() < population_size) {
+            // Selekcja
+            Solution parent1 = tournament_selection(population, instance, tournament_size, rng);
+            Solution parent2 = tournament_selection(population, instance, tournament_size, rng);
+            // Krzyżowanie
+            Solution child = order_crossover(parent1, parent2, rng);
+            // Mutacja
+            std::uniform_real_distribution<double> prob(0.0, 1.0);
+            if (prob(rng) < mutation_prob) {
+                mutate_swap(child, rng);
+            }
+            new_population.push_back(child);
+            // Aktualizuj najlepszego
+            Solution child_copy = child;
+            int ms = calculate_makespan(instance, child_copy);
+            if (ms < best_makespan) {
+                best_makespan = ms;
+                best_overall = child;
+            }
+        }
+        population = std::move(new_population);
+    }
+    return best_overall;
+}
+
 
 } // namespace jobshop

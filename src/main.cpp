@@ -7,7 +7,7 @@
 
 int main() {
     // Ścieżka do przykładowej instancji
-    std::string filename = "../data/instances/instance_small.txt";
+    std::string filename = "../data/instances/instance_large.txt";
     jobshop::JobShopInstance instance = jobshop::load_instance_from_file(filename);
 
     std::cout << "Jobs: " << instance.jobs.size() << "\n";
@@ -98,6 +98,23 @@ int main() {
     }
     std::cout << std::endl;
     std::cout << "Mutated child makespan: " << mutated_makespan << std::endl;
+
+    // Uruchom algorytm genetyczny
+    size_t generations = 50;
+    // size_t tournament_size = 3; // już zdefiniowane wcześniej (linia 63)
+    double mutation_prob = 0.2;
+
+    jobshop::Solution best = jobshop::run_genetic(
+        instance, population_size, generations, tournament_size, mutation_prob, rng);
+    int best_makespan = jobshop::calculate_makespan(instance, best);
+
+    std::cout << "\nBest solution after evolution:" << std::endl;
+    for (const auto& op : best.operation_sequence) {
+        std::cout << "(" << op.first << "," << op.second << ") ";
+    }
+    std::cout << std::endl;
+    std::cout << "Best makespan: " << best_makespan << std::endl;
+
 
     return 0;
 }

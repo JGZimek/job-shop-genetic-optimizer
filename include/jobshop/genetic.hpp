@@ -23,6 +23,17 @@ Solution order_crossover(const Solution& parent1, const Solution& parent2, std::
 // Mutacja przez zamianę dwóch operacji miejscami
 void mutate_swap(Solution& solution, std::mt19937& rng);
 
+// Główna funkcja algorytmu genetycznego
+Solution run_genetic(
+    const JobShopInstance& instance,
+    size_t population_size,
+    size_t generations,
+    size_t tournament_size,
+    double mutation_prob,
+    std::mt19937& rng
+);
+
+
 } // namespace jobshop
 
 #endif // JOBSHOP_GENETIC_HPP

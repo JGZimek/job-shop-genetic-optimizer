@@ -102,6 +102,7 @@ int main() {
     // Uruchom algorytm genetyczny
     size_t generations = 50;
     // size_t tournament_size = 3; // już zdefiniowane wcześniej (linia 63)
+    // size_t population_size = 5; // już zdefiniowane wcześniej (linia 53)
     double mutation_prob = 0.2;
 
     jobshop::Solution best = jobshop::run_genetic(

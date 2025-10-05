@@ -1,8 +1,4 @@
 #include "jobshop/solution.hpp"
-#include "jobshop/core.hpp"
-#include <unordered_map>
-#include <algorithm>
-#include <stdexcept>
 
 namespace jobshop {
 

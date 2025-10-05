@@ -1,7 +1,6 @@
 #include <iostream>
 #include <random>
 #include "jobshop/genetic.hpp"
-#include "jobshop/core.hpp"
 #include "jobshop/file_io.hpp"
 #include "jobshop/solution.hpp"
 

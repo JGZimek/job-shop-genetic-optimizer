@@ -1,8 +1,11 @@
 #ifndef JOBSHOP_FILE_IO_HPP
 #define JOBSHOP_FILE_IO_HPP
 
-#include "jobshop/core.hpp"
+#include "jobshop/solution.hpp"
 #include <string>
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
 
 namespace jobshop {
 

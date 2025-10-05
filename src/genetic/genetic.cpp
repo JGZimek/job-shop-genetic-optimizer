@@ -1,8 +1,4 @@
 #include "jobshop/genetic.hpp"
-#include <unordered_set>
-#include <algorithm>
-#include <utility>
-#include <cstddef>
 
 namespace jobshop {
 

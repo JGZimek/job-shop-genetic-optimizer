@@ -1,10 +1,13 @@
 #ifndef JOBSHOP_GENETIC_HPP
 #define JOBSHOP_GENETIC_HPP
 
-#include "jobshop/core.hpp"
 #include "jobshop/solution.hpp"
 #include <vector>
 #include <random>
+#include <unordered_set>
+#include <algorithm>
+#include <utility>
+#include <cstddef>
 
 namespace jobshop {
 

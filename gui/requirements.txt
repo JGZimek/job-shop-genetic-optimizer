@@ -1,0 +1,4 @@
+customtkinter
+pybind11
+numpy
+matplotlib

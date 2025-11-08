@@ -42,3 +42,6 @@
 
 # CMake build directories
 build*/
+
+# Virtual environment
+.venv/

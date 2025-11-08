@@ -1,5 +1,4 @@
 #include <iostream>
-#include <random>
 #include "jobshop/genetic.hpp"
 #include "jobshop/file_io.hpp"
 #include "jobshop/solution.hpp"
@@ -47,10 +46,10 @@ int main() {
         std::cout << "Job " << job_id << ", Op " << op_id << ": " << solution.start_times[i] << std::endl;
     }
 
-    std::random_device rd;
-    std::mt19937 rng(rd());
+    // Seed dla powtarzalności
+    unsigned int seed = 42;
     size_t population_size = 5;
-    auto population = jobshop::generate_population(instance, population_size, rng);
+    auto population = jobshop::generate_population(instance, population_size, seed);
 
     std::cout << "\nRandom population (" << population_size << "):\n";
     for (size_t i = 0; i < population.size(); ++i) {
@@ -60,7 +59,7 @@ int main() {
 
     // Test selekcji turniejowej
     size_t tournament_size = 3;
-    auto parent = jobshop::tournament_selection(population, instance, tournament_size, rng);
+    auto parent = jobshop::tournament_selection(population, instance, tournament_size, seed);
     int parent_makespan = jobshop::calculate_makespan(instance, parent);
     std::cout << "\nSelected parent (tournament):\n";
     for (const auto& op : parent.operation_sequence) {
@@ -69,18 +68,13 @@ int main() {
     std::cout << "\nParent makespan: " << parent_makespan << std::endl;
 
     // Wybierz dwóch różnych rodziców
-    std::uniform_int_distribution<size_t> dist(0, population.size() - 1);
-    size_t idx1 = dist(rng);
-    size_t idx2 = dist(rng);
-    while (idx2 == idx1) idx2 = dist(rng);
+    const auto& parent1 = population[0];
+    const auto& parent2 = population[1];
 
-    const auto& parent1 = population[idx1];
-    const auto& parent2 = population[idx2];
-
-    jobshop::Solution child = jobshop::order_crossover(parent1, parent2, rng);
+    jobshop::Solution child = jobshop::order_crossover(parent1, parent2, seed);
     int child_makespan = jobshop::calculate_makespan(instance, child);
 
-    std::cout << "\nCrossover (OX) between Individual " << idx1 << " and Individual " << idx2 << ":\n";
+    std::cout << "\nCrossover (OX) between Individual 0 and Individual 1:\n";
     std::cout << "Child sequence:\n";
     for (const auto& op : child.operation_sequence) {
         std::cout << "(" << op.first << "," << op.second << ") ";
@@ -89,7 +83,7 @@ int main() {
     std::cout << "Child makespan: " << child_makespan << std::endl;
 
     // Mutacja dziecka
-    jobshop::mutate_swap(child, rng);
+    jobshop::mutate_swap(child, seed);
     int mutated_makespan = jobshop::calculate_makespan(instance, child);
     std::cout << "\nChild after mutation (swap):\n";
     for (const auto& op : child.operation_sequence) {
@@ -100,12 +94,10 @@ int main() {
 
     // Uruchom algorytm genetyczny
     size_t generations = 50;
-    // size_t tournament_size = 3; // już zdefiniowane wcześniej (linia 63)
-    // size_t population_size = 5; // już zdefiniowane wcześniej (linia 53)
     double mutation_prob = 0.2;
 
     jobshop::Solution best = jobshop::run_genetic(
-        instance, population_size, generations, tournament_size, mutation_prob, rng);
+        instance, population_size, generations, tournament_size, mutation_prob, seed);
     int best_makespan = jobshop::calculate_makespan(instance, best);
 
     std::cout << "\nBest solution after evolution:" << std::endl;
@@ -114,7 +106,6 @@ int main() {
     }
     std::cout << std::endl;
     std::cout << "Best makespan: " << best_makespan << std::endl;
-
 
     return 0;
 }

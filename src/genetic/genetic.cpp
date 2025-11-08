@@ -2,7 +2,8 @@
 
 namespace jobshop {
 
-Solution generate_random_solution(const JobShopInstance& instance, std::mt19937& rng) {
+Solution generate_random_solution(const JobShopInstance& instance, unsigned int seed) {
+    std::mt19937 rng(seed > 0 ? seed : std::time(nullptr));
     Solution sol;
     for (const auto& job : instance.jobs) {
         for (size_t op_id = 0; op_id < job.operations.size(); ++op_id) {
@@ -13,15 +14,17 @@ Solution generate_random_solution(const JobShopInstance& instance, std::mt19937&
     return sol;
 }
 
-std::vector<Solution> generate_population(const JobShopInstance& instance, size_t population_size, std::mt19937& rng) {
+std::vector<Solution> generate_population(const JobShopInstance& instance, size_t population_size, unsigned int seed) {
+    std::mt19937 rng(seed > 0 ? seed : std::time(nullptr));
     std::vector<Solution> population;
     for (size_t i = 0; i < population_size; ++i) {
-        population.push_back(generate_random_solution(instance, rng));
+        population.push_back(generate_random_solution(instance, rng()));
     }
     return population;
 }
 
-Solution tournament_selection(const std::vector<Solution>& population, const JobShopInstance& instance, size_t tournament_size, std::mt19937& rng) {
+Solution tournament_selection(const std::vector<Solution>& population, const JobShopInstance& instance, size_t tournament_size, unsigned int seed) {
+    std::mt19937 rng(seed > 0 ? seed : std::time(nullptr));
     std::uniform_int_distribution<size_t> dist(0, population.size() - 1);
     Solution best = population[dist(rng)];
     Solution best_copy = best;
@@ -45,7 +48,8 @@ struct PairHash {
     }
 };
 
-Solution order_crossover(const Solution& parent1, const Solution& parent2, std::mt19937& rng) {
+Solution order_crossover(const Solution& parent1, const Solution& parent2, unsigned int seed) {
+    std::mt19937 rng(seed > 0 ? seed : std::time(nullptr));
     size_t n = parent1.operation_sequence.size();
     Solution child;
     child.operation_sequence.resize(n);
@@ -78,7 +82,8 @@ Solution order_crossover(const Solution& parent1, const Solution& parent2, std::
     return child;
 }
 
-void mutate_swap(Solution& solution, std::mt19937& rng) {
+void mutate_swap(Solution& solution, unsigned int seed) {
+    std::mt19937 rng(seed > 0 ? seed : std::time(nullptr));
     size_t n = solution.operation_sequence.size();
     if (n < 2) return;
     std::uniform_int_distribution<size_t> dist(0, n - 1);
@@ -94,9 +99,10 @@ Solution run_genetic(
     size_t generations,
     size_t tournament_size,
     double mutation_prob,
-    std::mt19937& rng
+    unsigned int seed
 ) {
-    auto population = generate_population(instance, population_size, rng);
+    std::mt19937 rng(seed > 0 ? seed : std::time(nullptr));
+    auto population = generate_population(instance, population_size, rng());
     Solution best_overall = population[0];
     int best_makespan = calculate_makespan(instance, best_overall);
 
@@ -104,14 +110,14 @@ Solution run_genetic(
         std::vector<Solution> new_population;
         while (new_population.size() < population_size) {
             // Selekcja
-            Solution parent1 = tournament_selection(population, instance, tournament_size, rng);
-            Solution parent2 = tournament_selection(population, instance, tournament_size, rng);
+            Solution parent1 = tournament_selection(population, instance, tournament_size, rng());
+            Solution parent2 = tournament_selection(population, instance, tournament_size, rng());
             // Krzyżowanie
-            Solution child = order_crossover(parent1, parent2, rng);
+            Solution child = order_crossover(parent1, parent2, rng());
             // Mutacja
             std::uniform_real_distribution<double> prob(0.0, 1.0);
             if (prob(rng) < mutation_prob) {
-                mutate_swap(child, rng);
+                mutate_swap(child, rng());
             }
             new_population.push_back(child);
             // Aktualizuj najlepszego
@@ -126,6 +132,5 @@ Solution run_genetic(
     }
     return best_overall;
 }
-
 
 } // namespace jobshop

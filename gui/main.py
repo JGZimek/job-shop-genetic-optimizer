@@ -1,204 +1,246 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import threading
+import sys
+import os
+from pathlib import Path
+import time
+
+# DLL path setup
+if sys.platform == "win32":
+    msys_bin = r"C:\msys64\ucrt64\bin"
+    if os.path.exists(msys_bin):
+        os.add_dll_directory(msys_bin)
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "build"))
+
+try:
+    import jobshop_bindings as jb
+    BINDINGS_AVAILABLE = True
+except ImportError as e:
+    BINDINGS_AVAILABLE = False
+    IMPORT_ERROR = str(e)
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from widgets import HeaderFrame, SidebarFrame, ConsoleFrame, GanttFrame, ButtonsFrame
+from config import WINDOW_WIDTH, WINDOW_HEIGHT
+
 
 class JobShopApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         
-        # Ustawienia okna
         self.title("Job Shop Transport Optimizer")
-        self.geometry("1200x700")
+        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
         
-        # Motyw i kolory
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
         
-        # Stwórz główny layout
+        self.instance = None
+        self.best_solution = None
+        self.is_running = False
+        
+        if not BINDINGS_AVAILABLE:
+            messagebox.showerror(
+                "Error",
+                f"Failed to import jobshop_bindings!\n\n{IMPORT_ERROR}\n\n"
+                "Make sure you:\n"
+                "1. Ran: cmake --build --preset=default\n"
+                "2. Have build/ folder with jobshop_bindings.pyd"
+            )
+        
         self.create_widgets()
     
     def create_widgets(self):
-        """Tworzy wszystkie komponenty GUI"""
+        """Create UI layout"""
+        self.configure(fg_color="#0d1117")
         
-        # --- GÓRNY PANEL: Tytuł ---
-        header_frame = ctk.CTkFrame(self)
-        header_frame.pack(side="top", fill="x", padx=10, pady=10)
+        # --- HEADER ---
+        header_frame = ctk.CTkFrame(self, fg_color="#0d1117", corner_radius=0)
+        header_frame.pack(side="top", fill="x", padx=0, pady=0)
         
-        title_label = ctk.CTkLabel(
-            header_frame,
-            text="Job Shop Scheduling with Transport Times Optimizer",
-            font=ctk.CTkFont(size=20, weight="bold")
-        )
-        title_label.pack(side="left")
+        self.header = HeaderFrame(header_frame, bindings_available=BINDINGS_AVAILABLE)
+        self.header.pack(fill="x", padx=15, pady=10)
         
-        # --- LEWY PANEL: Parametry ---
-        left_panel = ctk.CTkFrame(self)
-        left_panel.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        # --- MAIN CONTAINER ---
+        main_container = ctk.CTkFrame(self, fg_color="#0d1117")
+        main_container.pack(side="top", fill="both", expand=True, padx=15, pady=15)
         
-        # Sekcja: Wczytywanie instancji
-        instance_label = ctk.CTkLabel(
+        # --- LEFT PANEL: Two cards ---
+        left_panel = ctk.CTkFrame(main_container, fg_color="#0d1117")
+        left_panel.pack(side="left", fill="both", expand=False, padx=(0, 15))
+        left_panel.configure(width=350)
+        
+                # Top card: Parameters
+        params_card = ctk.CTkFrame(
             left_panel,
-            text="Instance",
-            font=ctk.CTkFont(size=14, weight="bold")
+            fg_color="#161b22"
         )
-        instance_label.pack(anchor="w", pady=(0, 10))
+        params_card.pack(fill="both", expand=True, padx=0, pady=(0, 15))
         
-        self.instance_file = ctk.CTkEntry(left_panel, placeholder_text="No file selected")
-        self.instance_file.pack(fill="x", pady=5)
+        self.sidebar = SidebarFrame(
+            params_card,
+            on_instance_load=self.load_instance
+        )
+        self.sidebar.pack(fill="both", expand=True, padx=15, pady=15)
+        self.sidebar.configure(fg_color="#161b22")
         
-        load_btn = ctk.CTkButton(
+        # Bottom card: Buttons
+        buttons_card = ctk.CTkFrame(
             left_panel,
-            text="Load Instance",
-            command=self.load_instance
+            fg_color="#161b22"
         )
-        load_btn.pack(fill="x", pady=5)
+        buttons_card.pack(fill="x", padx=0, pady=0)
         
-        # Separator
-        separator = ctk.CTkFrame(left_panel, height=2, fg_color="gray30")
-        separator.pack(fill="x", pady=15)
-        
-        # Sekcja: Parametry algorytmu genetycznego
-        ga_label = ctk.CTkLabel(
-            left_panel,
-            text="Genetic Algorithm Parameters",
-            font=ctk.CTkFont(size=14, weight="bold")
+        self.buttons = ButtonsFrame(
+            buttons_card,
+            on_optimize=self.run_optimization,
+            on_clear=self.clear_results
         )
-        ga_label.pack(anchor="w", pady=(10, 10))
+        self.buttons.pack(fill="both", expand=True, padx=15, pady=15)
+        self.buttons.configure(fg_color="#161b22")
         
-        # Population size
-        ctk.CTkLabel(left_panel, text="Population Size:").pack(anchor="w", pady=(5, 0))
-        self.population_size = ctk.CTkEntry(left_panel)
-        self.population_size.insert(0, "50")
-        self.population_size.pack(fill="x", pady=(0, 10))
+        # --- RIGHT PANEL: Content ---
+        right_container = ctk.CTkFrame(main_container, fg_color="#0d1117")
+        right_container.pack(side="right", fill="both", expand=True)
         
-        # Generations
-        ctk.CTkLabel(left_panel, text="Generations:").pack(anchor="w", pady=(5, 0))
-        self.generations = ctk.CTkEntry(left_panel)
-        self.generations.insert(0, "100")
-        self.generations.pack(fill="x", pady=(0, 10))
-        
-        # Mutation probability
-        ctk.CTkLabel(left_panel, text="Mutation Probability:").pack(anchor="w", pady=(5, 0))
-        self.mutation_prob = ctk.CTkEntry(left_panel)
-        self.mutation_prob.insert(0, "0.2")
-        self.mutation_prob.pack(fill="x", pady=(0, 10))
-        
-        # Separator
-        separator2 = ctk.CTkFrame(left_panel, height=2, fg_color="gray30")
-        separator2.pack(fill="x", pady=15)
-        
-        # Sekcja: Wybór algorytmu
-        algo_label = ctk.CTkLabel(
-            left_panel,
-            text="Algorithm Selection",
-            font=ctk.CTkFont(size=14, weight="bold")
+        # Gantt Card
+        gantt_card = ctk.CTkFrame(
+            right_container,
+            fg_color="#161b22",
+            corner_radius=10,
+            border_width=1,
+            border_color="#30363d"
         )
-        algo_label.pack(anchor="w", pady=(10, 10))
+        gantt_card.pack(fill="both", expand=True, pady=(0, 15))
         
-        self.algo_var = tk.StringVar(value="genetic")
+        self.gantt = GanttFrame(gantt_card)
+        self.gantt.pack(fill="both", expand=True, padx=15, pady=15)
+        self.gantt.configure(fg_color="#161b22")
         
-        genetic_radio = ctk.CTkRadioButton(
-            left_panel,
-            text="Genetic Algorithm",
-            variable=self.algo_var,
-            value="genetic"
+        # Logs Card
+        logs_card = ctk.CTkFrame(
+            right_container,
+            fg_color="#161b22",
+            corner_radius=10,
+            border_width=1,
+            border_color="#30363d"
         )
-        genetic_radio.pack(anchor="w", pady=5)
+        logs_card.pack(fill="both", expand=False, pady=0)
+        logs_card.configure(height=180)
         
-        exact_radio = ctk.CTkRadioButton(
-            left_panel,
-            text="Exact Algorithm",
-            variable=self.algo_var,
-            value="exact"
-        )
-        exact_radio.pack(anchor="w", pady=5)
-        
-        greedy_radio = ctk.CTkRadioButton(
-            left_panel,
-            text="Greedy Heuristic",
-            variable=self.algo_var,
-            value="greedy"
-        )
-        greedy_radio.pack(anchor="w", pady=5)
-        
-        # Separator
-        separator3 = ctk.CTkFrame(left_panel, height=2, fg_color="gray30")
-        separator3.pack(fill="x", pady=15)
-        
-        # Przyciski akcji
-        run_btn = ctk.CTkButton(
-            left_panel,
-            text="▶ Run Optimization",
-            command=self.run_optimization,
-            fg_color="green",
-            hover_color="darkgreen",
-            height=40,
-            font=ctk.CTkFont(size=12, weight="bold")
-        )
-        run_btn.pack(fill="x", pady=10)
-        
-        # --- PRAWY PANEL: Wyniki i wizualizacja ---
-        right_panel = ctk.CTkFrame(self)
-        right_panel.pack(side="right", fill="both", expand=True, padx=10, pady=10)
-        
-        results_label = ctk.CTkLabel(
-            right_panel,
-            text="Results",
-            font=ctk.CTkFont(size=14, weight="bold")
-        )
-        results_label.pack(anchor="w", pady=(0, 10))
-        
-        # Logi/wyniki w textbox
-        self.results_text = ctk.CTkTextbox(right_panel, height=300)
-        self.results_text.pack(fill="both", expand=True, pady=10)
-        
-        # Status bar
-        status_frame = ctk.CTkFrame(self)
-        status_frame.pack(side="bottom", fill="x", padx=10, pady=5)
-        
-        self.status_label = ctk.CTkLabel(
-            status_frame,
-            text="Ready",
-            text_color="gray"
-        )
-        self.status_label.pack(anchor="w")
+        self.console = ConsoleFrame(logs_card)
+        self.console.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+        self.console.configure(fg_color="#161b22")
     
     def load_instance(self):
-        """Wczytuj plik instancji"""
+        """Load instance from file"""
         file_path = filedialog.askopenfilename(
-            initialdir="../data/instances",
+            initialdir="data/instances",
             filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
         )
+        
         if file_path:
-            self.instance_file.delete(0, tk.END)
-            self.instance_file.insert(0, file_path)
-            self.update_status(f"Loaded: {file_path.split('/')[-1]}")
+            try:
+                self.instance = jb.load_instance_from_file(file_path)
+                
+                jobs = len(self.instance.jobs)
+                machines = self.instance.num_machines
+                
+                self.console.insert_log(f"\n{'='*60}\n")
+                self.console.insert_log(f"Instance loaded: {Path(file_path).name}\n")
+                self.console.insert_log(f"Jobs: {jobs}, Machines: {machines}\n")
+                self.console.insert_log(f"{'='*60}\n")
+                
+                # Wyświetl w headerze
+                self.header.set_instance_info(Path(file_path).name, jobs, machines)
+                self.header.update_status("Ready", "#8b949e")
+                
+                # Włącz przycisk
+                self.buttons.enable_optimize()
+                
+                return (file_path, jobs, machines)
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load instance:\n{str(e)}")
+                self.header.update_status(f"Error: {str(e)}", "#ff0000")
+                return None
+        
+        return None
     
     def run_optimization(self):
-        """Uruchom wybrany algorytm"""
-        instance = self.instance_file.get()
-        if not instance or instance == "No file selected":
+        """Run optimization in separate thread"""
+        if not self.instance:
             messagebox.showerror("Error", "Please load an instance first!")
             return
         
-        algo = self.algo_var.get()
-        self.update_status(f"Running {algo} algorithm...")
-        self.results_text.insert("end", f"\n{'='*50}\n")
-        self.results_text.insert("end", f"Algorithm: {algo.upper()}\n")
-        self.results_text.insert("end", f"Instance: {instance}\n")
+        params = self.sidebar.get_parameters()
+        if not params:
+            messagebox.showerror("Error", "Invalid parameter values!")
+            return
         
-        if algo == "genetic":
-            pop_size = self.population_size.get()
-            gens = self.generations.get()
-            mut_prob = self.mutation_prob.get()
-            self.results_text.insert("end", f"Population: {pop_size}, Generations: {gens}, Mutation: {mut_prob}\n")
+        self.is_running = True
+        self.buttons.disable_optimize()
         
-        self.results_text.insert("end", "Status: Optimization completed!\n")
-        self.update_status("Optimization completed!")
+        thread = threading.Thread(
+            target=self._run_optimization_thread,
+            args=(params,)
+        )
+        thread.daemon = True
+        thread.start()
+    
+    def _run_optimization_thread(self, params):
+        """Execute optimization in thread"""
+        try:
+            self.header.update_status("Running optimization...", "#ffaa00")
+            
+            # Shortened logs
+            self.console.insert_log("GA started...\n")
+            
+            start_time = time.time()
+            self.best_solution = jb.run_genetic(
+                self.instance,
+                params['population_size'],
+                params['generations'],
+                params['tournament_size'],
+                params['mutation_prob'],
+                params['seed']
+            )
+            elapsed_time = time.time() - start_time
+            
+            makespan = jb.calculate_makespan(self.instance, self.best_solution)
+            
+            # Minimal logs
+            self.console.insert_log(f"Completed in {elapsed_time:.2f}s\n")
+            self.console.insert_log(f"Makespan: {makespan}\n")
+            
+            self.gantt.draw_gantt(self.instance, self.best_solution)
+            
+            self.header.update_status(
+                f"Completed in {elapsed_time:.2f}s - Makespan: {makespan}",
+                "#00ff00"
+            )
+            
+        except Exception as e:
+            self.console.insert_log(f"Error: {str(e)}\n")
+            self.header.update_status(f"Error: {str(e)}", "#ff0000")
+        finally:
+            self.is_running = False
+            self.buttons.enable_optimize()
+
+    def clear_results(self):
+        """Clear all results"""
+        self.console.clear()
+        self.gantt.clear()
+        self.best_solution = None
+        # self.header.reset_instance_info()
+        self.header.update_status("Ready", "#8b949e")
     
     def update_status(self, message):
-        """Aktualizuj status bar"""
-        self.status_label.configure(text=message)
+        """Update status in header"""
+        self.header.update_status(message)
 
 
 def main():

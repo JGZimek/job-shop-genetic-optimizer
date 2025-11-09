@@ -65,10 +65,10 @@ class JobShopApp(ctk.CTk):
         
         # --- HEADER ---
         header_frame = ctk.CTkFrame(self, fg_color="#0d1117", corner_radius=0)
-        header_frame.pack(side="top", fill="x", padx=0, pady=0)
+        header_frame.pack(side="top", fill="x", padx=15, pady=(15, 10))  # Zmieniono padx i pady
         
         self.header = HeaderFrame(header_frame, bindings_available=BINDINGS_AVAILABLE)
-        self.header.pack(fill="x", padx=15, pady=10)
+        self.header.pack(fill="x")  # Usunięto padx i pady
         
         # --- MAIN CONTAINER ---
         main_container = ctk.CTkFrame(self, fg_color="#0d1117")

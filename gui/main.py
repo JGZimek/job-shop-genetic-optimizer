@@ -65,10 +65,10 @@ class JobShopApp(ctk.CTk):
         
         # --- HEADER ---
         header_frame = ctk.CTkFrame(self, fg_color="#0d1117", corner_radius=0)
-        header_frame.pack(side="top", fill="x", padx=15, pady=(15, 10))  # Zmieniono padx i pady
+        header_frame.pack(side="top", fill="x", padx=15, pady=(15, 10))
         
         self.header = HeaderFrame(header_frame, bindings_available=BINDINGS_AVAILABLE)
-        self.header.pack(fill="x")  # Usunięto padx i pady
+        self.header.pack(fill="x")
         
         # --- MAIN CONTAINER ---
         main_container = ctk.CTkFrame(self, fg_color="#0d1117")
@@ -107,7 +107,12 @@ class JobShopApp(ctk.CTk):
         right_container = ctk.CTkFrame(main_container, fg_color="#0d1117")
         right_container.pack(side="right", fill="both", expand=True)
         
-        # Gantt Card
+        # Konfiguruj grid weights (75% Gantt, 25% Logs)
+        right_container.grid_rowconfigure(0, weight=75)  # Gantt - 75%
+        right_container.grid_rowconfigure(1, weight=25)  # Logs - 25%
+        right_container.grid_columnconfigure(0, weight=1)
+        
+        # Gantt Card (75%)
         gantt_card = ctk.CTkFrame(
             right_container,
             fg_color="#161b22",
@@ -115,13 +120,13 @@ class JobShopApp(ctk.CTk):
             border_width=1,
             border_color="#30363d"
         )
-        gantt_card.pack(fill="both", expand=True, pady=(0, 15))
+        gantt_card.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
         
         self.gantt = GanttFrame(gantt_card)
         self.gantt.pack(fill="both", expand=True, padx=15, pady=15)
         self.gantt.configure(fg_color="#161b22")
         
-        # Logs Card
+        # Logs Card (25%)
         logs_card = ctk.CTkFrame(
             right_container,
             fg_color="#161b22",
@@ -129,54 +134,90 @@ class JobShopApp(ctk.CTk):
             border_width=1,
             border_color="#30363d"
         )
-        logs_card.pack(fill="both", expand=False, pady=0)
-        logs_card.configure(height=180)
+        logs_card.grid(row=1, column=0, sticky="nsew", pady=0)
         
         self.console = ConsoleFrame(logs_card)
-        self.console.pack(fill="both", expand=True, padx=15, pady=(0, 15))
+        self.console.pack(fill="both", expand=True, padx=15, pady=15)
         self.console.configure(fg_color="#161b22")
+
     
     def load_instance(self):
-        """Load instance from file"""
+        """Load instance from file - supports .txt, .csv formats"""
         file_path = filedialog.askopenfilename(
             initialdir="data/instances",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+            filetypes=[
+                ("All Supported", "*.txt *.csv"),
+                ("Text Files (TXT)", "*.txt"),
+                ("Spreadsheet (CSV)", "*.csv"),
+                ("All files", "*.*")
+            ]
         )
         
-        if file_path:
-            try:
-                self.instance = jb.load_instance_from_file(file_path)
-                
-                jobs = len(self.instance.jobs)
-                machines = self.instance.num_machines
-                
-                self.console.insert_log(f"\n{'='*60}\n")
-                self.console.insert_log(f"Instance loaded: {Path(file_path).name}\n")
-                self.console.insert_log(f"Jobs: {jobs}, Machines: {machines}\n")
-                self.console.insert_log(f"{'='*60}\n")
-                
-                self.header.set_instance_info(Path(file_path).name, jobs, machines)
-                self.header.update_status("Ready", "#8b949e")
-                self.buttons.enable_optimize()
-                
-                return (file_path, jobs, machines)
-                
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to load instance:\n{str(e)}")
-                self.header.update_status(f"Error: {str(e)}", "#ff0000")
-                return None
+        if not file_path:
+            return None
         
-        return None
+        # Validate file extension
+        file_ext = Path(file_path).suffix.lower()
+        supported_formats = {'.txt', '.csv'}
+        
+        if file_ext not in supported_formats:
+            messagebox.showwarning(
+                "Unsupported Format",
+                f"Supported: .txt, .csv\nSelected: {file_ext}"
+            )
+            return None
+        
+        try:
+            file_name = Path(file_path).name
+            self.console.insert_log(f"Loading: {file_name}\n")
+            self.header.update_status(f"Loading {file_name}...", "#ffaa00")
+            self.update_idletasks()
+            
+            # Load instance
+            self.instance = jb.load_instance_from_file(file_path)
+            
+            jobs = len(self.instance.jobs)
+            machines = self.instance.num_machines
+            
+            if jobs == 0 or machines == 0:
+                raise ValueError("Invalid instance")
+            
+            # Calculate baseline
+            seq_sol = jb.Solution()
+            for j in range(jobs):
+                for op in range(machines):
+                    seq_sol.operation_sequence.append((j, op))
+            
+            baseline = jb.calculate_makespan(self.instance, seq_sol)
+            
+            # Minimalist log
+            self.console.insert_log(f"File: {file_name} | Jobs: {jobs} | Machines: {machines} | Baseline: {baseline}\n")
+            
+            # Update GUI
+            self.header.set_instance_info(file_name, jobs, machines)
+            self.header.update_status("Ready", "#8b949e")
+            self.buttons.enable_optimize()
+            
+            return (file_path, jobs, machines)
+        
+        except Exception as e:
+            error_msg = str(e)
+            messagebox.showerror("Error", f"Failed to load:\n{error_msg}")
+            self.console.insert_log(f"Error: {error_msg}\n")
+            self.header.update_status("Error", "#ff0000")
+            self.instance = None
+            return None
+
     
     def run_optimization(self):
         """Run optimization in separate thread"""
         if not self.instance:
-            messagebox.showerror("Error", "Please load an instance first!")
+            messagebox.showerror("Error", "Load instance first!")
             return
         
         params = self.sidebar.get_parameters()
         if not params:
-            messagebox.showerror("Error", "Invalid parameter values!")
+            messagebox.showerror("Error", "Invalid parameters!")
             return
         
         self.is_running = True
@@ -192,8 +233,11 @@ class JobShopApp(ctk.CTk):
     def _run_optimization_thread(self, params):
         """Execute optimization in thread"""
         try:
-            self.header.update_status("Running optimization...", "#ffaa00")
-            self.console.insert_log("GA started...\n")
+            self.header.update_status("Running...", "#ffaa00")
+            
+            # Minimalist log
+            self.console.insert_log(f"GA: pop={params['population_size']} gen={params['generations']} ")
+            self.update_idletasks()
             
             start_time = time.time()
             self.best_solution = jb.run_genetic(
@@ -208,31 +252,30 @@ class JobShopApp(ctk.CTk):
             
             makespan = jb.calculate_makespan(self.instance, self.best_solution)
             
-            self.console.insert_log(f"Completed in {elapsed_time:.2f}s\n")
-            self.console.insert_log(f"Makespan: {makespan}\n")
+            # Minimalist log
+            self.console.insert_log(f"Done in {elapsed_time:.2f}s - Makespan: {makespan}\n")
             
             self.gantt.draw_gantt(self.instance, self.best_solution)
             self.buttons.enable_export()
             
             self.header.update_status(
-                f"Completed in {elapsed_time:.2f}s - Makespan: {makespan}",
+                f"Completed: {makespan} ({elapsed_time:.2f}s)",
                 "#00ff00"
             )
             
         except Exception as e:
             self.console.insert_log(f"Error: {str(e)}\n")
-            self.header.update_status(f"Error: {str(e)}", "#ff0000")
+            self.header.update_status("Error", "#ff0000")
         finally:
             self.is_running = False
             self.buttons.enable_optimize()
     
     def export_schedule(self):
-        """Export schedule z modal dialogu"""
+        """Export schedule"""
         if not self.best_solution or not self.instance:
-            messagebox.showwarning("Warning", "No schedule to export!")
+            messagebox.showwarning("Warning", "No results to export!")
             return
         
-        # Otwórz modal dialog
         from gui.dialogs.export_dialog import ExportDialog
         dialog = ExportDialog(self)
         self.wait_window(dialog)
@@ -246,7 +289,6 @@ class JobShopApp(ctk.CTk):
         try:
             exported = []
             
-            # CSV
             if result['csv']:
                 from datetime import datetime
                 filename = f"schedule_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -256,9 +298,8 @@ class JobShopApp(ctk.CTk):
                     output_path=save_path / filename
                 )
                 exported.append(Path(path).name)
-                self.console.insert_log(f"CSV: {Path(path).name}\n")
+                self.console.insert_log(f"Exported: {Path(path).name}\n")
             
-            # JSON
             if result['json']:
                 from datetime import datetime
                 filename = f"schedule_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -268,9 +309,8 @@ class JobShopApp(ctk.CTk):
                     output_path=save_path / filename
                 )
                 exported.append(Path(path).name)
-                self.console.insert_log(f"JSON: {Path(path).name}\n")
+                self.console.insert_log(f"Exported: {Path(path).name}\n")
             
-            # PNG
             if result['png'] and self.gantt.fig:
                 from datetime import datetime
                 filename = f"gantt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
@@ -279,17 +319,15 @@ class JobShopApp(ctk.CTk):
                     output_path=save_path / filename
                 )
                 exported.append(Path(path).name)
-                self.console.insert_log(f"PNG: {Path(path).name}\n")
+                self.console.insert_log(f"Exported: {Path(path).name}\n")
             
-            self.header.update_status("Schedule exported!", "#00ff00")
-            messagebox.showinfo("Success", f"Exported {len(exported)} files to:\n{save_path}")
+            self.header.update_status("Exported!", "#00ff00")
+            messagebox.showinfo("Success", f"Exported {len(exported)} files")
             
         except Exception as e:
             self.console.insert_log(f"Export error: {str(e)}\n")
-            self.header.update_status(f"Export error", "#ff0000")
             messagebox.showerror("Error", f"Export failed:\n{str(e)}")
 
-        
     def clear_results(self):
         """Clear all results"""
         self.console.clear()

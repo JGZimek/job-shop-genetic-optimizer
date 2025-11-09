@@ -7,13 +7,16 @@ import os
 from pathlib import Path
 import time
 
+
 # DLL path setup
 if sys.platform == "win32":
     msys_bin = r"C:\msys64\ucrt64\bin"
     if os.path.exists(msys_bin):
         os.add_dll_directory(msys_bin)
 
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "build"))
+
 
 try:
     import jobshop_bindings as jb
@@ -22,10 +25,13 @@ except ImportError as e:
     BINDINGS_AVAILABLE = False
     IMPORT_ERROR = str(e)
 
+
 sys.path.insert(0, str(Path(__file__).parent))
+
 
 from widgets import HeaderFrame, SidebarFrame, ConsoleFrame, GanttFrame, ButtonsFrame
 from config import WINDOW_WIDTH, WINDOW_HEIGHT
+from utils.export import ScheduleExporter
 
 
 class JobShopApp(ctk.CTk):
@@ -73,11 +79,8 @@ class JobShopApp(ctk.CTk):
         left_panel.pack(side="left", fill="both", expand=False, padx=(0, 15))
         left_panel.configure(width=350)
         
-                # Top card: Parameters
-        params_card = ctk.CTkFrame(
-            left_panel,
-            fg_color="#161b22"
-        )
+        # Top card: Parameters
+        params_card = ctk.CTkFrame(left_panel, fg_color="#161b22")
         params_card.pack(fill="both", expand=True, padx=0, pady=(0, 15))
         
         self.sidebar = SidebarFrame(
@@ -88,16 +91,14 @@ class JobShopApp(ctk.CTk):
         self.sidebar.configure(fg_color="#161b22")
         
         # Bottom card: Buttons
-        buttons_card = ctk.CTkFrame(
-            left_panel,
-            fg_color="#161b22"
-        )
+        buttons_card = ctk.CTkFrame(left_panel, fg_color="#161b22")
         buttons_card.pack(fill="x", padx=0, pady=0)
         
         self.buttons = ButtonsFrame(
             buttons_card,
             on_optimize=self.run_optimization,
-            on_clear=self.clear_results
+            on_clear=self.clear_results,
+            on_export=self.export_schedule
         )
         self.buttons.pack(fill="both", expand=True, padx=15, pady=15)
         self.buttons.configure(fg_color="#161b22")
@@ -154,11 +155,8 @@ class JobShopApp(ctk.CTk):
                 self.console.insert_log(f"Jobs: {jobs}, Machines: {machines}\n")
                 self.console.insert_log(f"{'='*60}\n")
                 
-                # Wyświetl w headerze
                 self.header.set_instance_info(Path(file_path).name, jobs, machines)
                 self.header.update_status("Ready", "#8b949e")
-                
-                # Włącz przycisk
                 self.buttons.enable_optimize()
                 
                 return (file_path, jobs, machines)
@@ -195,8 +193,6 @@ class JobShopApp(ctk.CTk):
         """Execute optimization in thread"""
         try:
             self.header.update_status("Running optimization...", "#ffaa00")
-            
-            # Shortened logs
             self.console.insert_log("GA started...\n")
             
             start_time = time.time()
@@ -212,11 +208,11 @@ class JobShopApp(ctk.CTk):
             
             makespan = jb.calculate_makespan(self.instance, self.best_solution)
             
-            # Minimal logs
             self.console.insert_log(f"Completed in {elapsed_time:.2f}s\n")
             self.console.insert_log(f"Makespan: {makespan}\n")
             
             self.gantt.draw_gantt(self.instance, self.best_solution)
+            self.buttons.enable_export()
             
             self.header.update_status(
                 f"Completed in {elapsed_time:.2f}s - Makespan: {makespan}",
@@ -229,13 +225,77 @@ class JobShopApp(ctk.CTk):
         finally:
             self.is_running = False
             self.buttons.enable_optimize()
+    
+    def export_schedule(self):
+        """Export schedule z modal dialogu"""
+        if not self.best_solution or not self.instance:
+            messagebox.showwarning("Warning", "No schedule to export!")
+            return
+        
+        # Otwórz modal dialog
+        from gui.dialogs.export_dialog import ExportDialog
+        dialog = ExportDialog(self)
+        self.wait_window(dialog)
+        
+        if not dialog.result:
+            return
+        
+        result = dialog.result
+        save_path = result['path']
+        
+        try:
+            exported = []
+            
+            # CSV
+            if result['csv']:
+                from datetime import datetime
+                filename = f"schedule_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                path = ScheduleExporter.export_to_csv(
+                    self.instance, 
+                    self.best_solution, 
+                    output_path=save_path / filename
+                )
+                exported.append(Path(path).name)
+                self.console.insert_log(f"CSV: {Path(path).name}\n")
+            
+            # JSON
+            if result['json']:
+                from datetime import datetime
+                filename = f"schedule_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                path = ScheduleExporter.export_to_json(
+                    self.instance, 
+                    self.best_solution, 
+                    output_path=save_path / filename
+                )
+                exported.append(Path(path).name)
+                self.console.insert_log(f"JSON: {Path(path).name}\n")
+            
+            # PNG
+            if result['png'] and self.gantt.fig:
+                from datetime import datetime
+                filename = f"gantt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                path = ScheduleExporter.export_gantt_image(
+                    self.gantt.fig, 
+                    output_path=save_path / filename
+                )
+                exported.append(Path(path).name)
+                self.console.insert_log(f"PNG: {Path(path).name}\n")
+            
+            self.header.update_status("Schedule exported!", "#00ff00")
+            messagebox.showinfo("Success", f"Exported {len(exported)} files to:\n{save_path}")
+            
+        except Exception as e:
+            self.console.insert_log(f"Export error: {str(e)}\n")
+            self.header.update_status(f"Export error", "#ff0000")
+            messagebox.showerror("Error", f"Export failed:\n{str(e)}")
 
+        
     def clear_results(self):
         """Clear all results"""
         self.console.clear()
         self.gantt.clear()
         self.best_solution = None
-        # self.header.reset_instance_info()
+        self.buttons.disable_export()
         self.header.update_status("Ready", "#8b949e")
     
     def update_status(self, message):

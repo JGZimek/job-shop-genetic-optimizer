@@ -121,7 +121,6 @@ class SidebarFrame(ctk.CTkFrame):
                 file_path, jobs, machines = result
                 self.instance_file.delete(0, "end")
                 self.instance_file.insert(0, file_path)
-                self.instance_info.configure(text=f"{jobs} jobs, {machines} machines")
                 self.instance_loaded = True
     
     def get_parameters(self):

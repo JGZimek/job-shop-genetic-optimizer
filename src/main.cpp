@@ -3,6 +3,7 @@
 #include "jobshop/genetic.hpp"
 #include "jobshop/file_io.hpp"
 #include "jobshop/solution.hpp"
+#include "jobshop/greedy.hpp"
 
 int main() {
     // Ścieżka do przykładowej instancji
@@ -114,6 +115,22 @@ int main() {
     }
     std::cout << std::endl;
     std::cout << "Best makespan: " << best_makespan << std::endl;
+
+    // ===  Uruchomienie algorytmu zachłannego ===
+    jobshop::Solution solution2 = jobshop::greedy_schedule(instance);
+
+    // === Wyświetlenie wyników ===
+    std::cout << "Wynikowy harmonogram (kolejność operacji):\n";
+    for (size_t i = 0; i < solution2.operation_sequence.size(); ++i) {
+        auto [job_id, op_id] = solution2.operation_sequence[i];
+        std::cout << "Operacja (" << job_id << "," << op_id << ") "
+                  << "start: " << solution2.start_times[i] << " "
+                  << "czas trwania: "
+                  << instance.jobs[job_id].operations[op_id].processing_time
+                  << "\n";
+    }
+
+    std::cout << "\nMakespan: " << solution2.makespan << " jednostek czasu\n";
 
 
     return 0;

@@ -4,6 +4,8 @@
 #include "jobshop/file_io.hpp"
 #include "jobshop/solution.hpp"
 #include "jobshop/greedy.hpp"
+#include "jobshop/exact.hpp"
+
 
 int main() {
     // Ścieżka do przykładowej instancji
@@ -132,6 +134,16 @@ int main() {
 
     std::cout << "\nMakespan: " << solution2.makespan << " jednostek czasu\n";
 
+
+//A-Star exact solver
+std::cout << "\n=== Running exact A* solver (optimal, may still be expensive) ===\n";
+jobshop::Solution optimal = jobshop::solve_exact(instance);
+std::cout << "A* optimal makespan: " << optimal.makespan << "\n";
+std::cout << "A* optimal sequence:\n";
+for (size_t i = 0; i < optimal.operation_sequence.size(); ++i) {
+    auto [job_id, op_id] = optimal.operation_sequence[i];
+    std::cout << "(" << job_id << "," << op_id << ") start=" << optimal.start_times[i] << "\n";
+}
 
     return 0;
 }

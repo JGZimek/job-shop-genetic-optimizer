@@ -224,23 +224,33 @@ class JobShopApp(ctk.CTk):
     def _run_optimization_thread(self, params):
         """Execute optimization in thread"""
         try:
+            algorithm = params.get("algorithm", "genetic")
+            
             self.header.update_status("Running...", "#ffaa00")
             
-            self.console.insert_log(
-                f"GA: pop={params['population_size']} gen={params['generations']} "
-            )
-            self.update_idletasks()
-            
             start_time = time.time()
-            self.best_solution = jb.run_genetic(
-                self.instance,
-                params['population_size'],
-                params['generations'],
-                params['tournament_size'],
-                params['mutation_prob'],
-                params['seed']
-            )
+            
+            if algorithm == "genetic":
+                self.console.insert_log(
+                    f"GA: pop={params['population_size']} gen={params['generations']}\n"
+                )
+                self.best_solution = jb.run_genetic(
+                    self.instance,
+                    params['population_size'],
+                    params['generations'],
+                    params['tournament_size'],
+                    params['mutation_prob'],
+                    params['seed']
+                )
+            elif algorithm == "greedy":
+                self.console.insert_log("Running Greedy Algorithm\n")
+                self.best_solution = jb.greedy_schedule(self.instance)
+            elif algorithm == "exact":
+                self.console.insert_log("Running Exact Algorithm (A*)\n")
+                self.best_solution = jb.solve_exact(self.instance)
+            
             elapsed_time = time.time() - start_time
+            self.update_idletasks()
             
             makespan = jb.calculate_makespan(self.instance, self.best_solution)
             

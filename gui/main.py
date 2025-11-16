@@ -7,27 +7,25 @@ import os
 from pathlib import Path
 import time
 
-
 # DLL path setup
 if sys.platform == "win32":
     msys_bin = r"C:\msys64\ucrt64\bin"
     if os.path.exists(msys_bin):
         os.add_dll_directory(msys_bin)
 
+# Add build/python_module to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "build" / "python_module"))
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "build"))
-
-
+# Try to import bindings
 try:
-    import jobshop_bindings as jb
+    import bindings as jb
     BINDINGS_AVAILABLE = True
 except ImportError as e:
     BINDINGS_AVAILABLE = False
     IMPORT_ERROR = str(e)
 
-
+# Add gui directory to path
 sys.path.insert(0, str(Path(__file__).parent))
-
 
 from widgets import HeaderFrame, SidebarFrame, ConsoleFrame, GanttFrame, ButtonsFrame
 from config import WINDOW_WIDTH, WINDOW_HEIGHT
@@ -51,10 +49,10 @@ class JobShopApp(ctk.CTk):
         if not BINDINGS_AVAILABLE:
             messagebox.showerror(
                 "Error",
-                f"Failed to import jobshop_bindings!\n\n{IMPORT_ERROR}\n\n"
+                f"Failed to import bindings!\n\n{IMPORT_ERROR}\n\n"
                 "Make sure you:\n"
                 "1. Ran: cmake --build --preset=default\n"
-                "2. Have build/ folder with jobshop_bindings.pyd"
+                "2. Have build/python_module/bindings.pyd"
             )
         
         self.create_widgets()
@@ -74,12 +72,12 @@ class JobShopApp(ctk.CTk):
         main_container = ctk.CTkFrame(self, fg_color="#0d1117")
         main_container.pack(side="top", fill="both", expand=True, padx=15, pady=15)
         
-        # --- LEFT PANEL: Two cards ---
+        # --- LEFT PANEL ---
         left_panel = ctk.CTkFrame(main_container, fg_color="#0d1117")
         left_panel.pack(side="left", fill="both", expand=False, padx=(0, 15))
         left_panel.configure(width=350)
         
-        # Top card: Parameters
+        # Parameters card
         params_card = ctk.CTkFrame(left_panel, fg_color="#161b22")
         params_card.pack(fill="both", expand=True, padx=0, pady=(0, 15))
         
@@ -90,7 +88,7 @@ class JobShopApp(ctk.CTk):
         self.sidebar.pack(fill="both", expand=True, padx=15, pady=15)
         self.sidebar.configure(fg_color="#161b22")
         
-        # Bottom card: Buttons
+        # Buttons card
         buttons_card = ctk.CTkFrame(left_panel, fg_color="#161b22")
         buttons_card.pack(fill="x", padx=0, pady=0)
         
@@ -103,16 +101,15 @@ class JobShopApp(ctk.CTk):
         self.buttons.pack(fill="both", expand=True, padx=15, pady=15)
         self.buttons.configure(fg_color="#161b22")
         
-        # --- RIGHT PANEL: Content ---
+        # --- RIGHT PANEL ---
         right_container = ctk.CTkFrame(main_container, fg_color="#0d1117")
         right_container.pack(side="right", fill="both", expand=True)
         
-        # Konfiguruj grid weights (75% Gantt, 25% Logs)
-        right_container.grid_rowconfigure(0, weight=75)  # Gantt - 75%
-        right_container.grid_rowconfigure(1, weight=25)  # Logs - 25%
+        right_container.grid_rowconfigure(0, weight=75)
+        right_container.grid_rowconfigure(1, weight=25)
         right_container.grid_columnconfigure(0, weight=1)
         
-        # Gantt Card (75%)
+        # Gantt card
         gantt_card = ctk.CTkFrame(
             right_container,
             fg_color="#161b22",
@@ -126,7 +123,7 @@ class JobShopApp(ctk.CTk):
         self.gantt.pack(fill="both", expand=True, padx=15, pady=15)
         self.gantt.configure(fg_color="#161b22")
         
-        # Logs Card (25%)
+        # Logs card
         logs_card = ctk.CTkFrame(
             right_container,
             fg_color="#161b22",
@@ -139,16 +136,15 @@ class JobShopApp(ctk.CTk):
         self.console = ConsoleFrame(logs_card)
         self.console.pack(fill="both", expand=True, padx=15, pady=15)
         self.console.configure(fg_color="#161b22")
-
     
     def load_instance(self):
-        """Load instance from file - supports .txt, .csv formats"""
+        """Load instance from file"""
         file_path = filedialog.askopenfilename(
             initialdir="data/instances",
             filetypes=[
                 ("All Supported", "*.txt *.csv"),
-                ("Text Files (TXT)", "*.txt"),
-                ("Spreadsheet (CSV)", "*.csv"),
+                ("Text Files", "*.txt"),
+                ("CSV Files", "*.csv"),
                 ("All files", "*.*")
             ]
         )
@@ -156,11 +152,8 @@ class JobShopApp(ctk.CTk):
         if not file_path:
             return None
         
-        # Validate file extension
         file_ext = Path(file_path).suffix.lower()
-        supported_formats = {'.txt', '.csv'}
-        
-        if file_ext not in supported_formats:
+        if file_ext not in {'.txt', '.csv'}:
             messagebox.showwarning(
                 "Unsupported Format",
                 f"Supported: .txt, .csv\nSelected: {file_ext}"
@@ -169,11 +162,9 @@ class JobShopApp(ctk.CTk):
         
         try:
             file_name = Path(file_path).name
-            self.console.insert_log(f"Loading: {file_name}\n")
             self.header.update_status(f"Loading {file_name}...", "#ffaa00")
             self.update_idletasks()
             
-            # Load instance
             self.instance = jb.load_instance_from_file(file_path)
             
             jobs = len(self.instance.jobs)
@@ -182,7 +173,6 @@ class JobShopApp(ctk.CTk):
             if jobs == 0 or machines == 0:
                 raise ValueError("Invalid instance")
             
-            # Calculate baseline
             seq_sol = jb.Solution()
             for j in range(jobs):
                 for op in range(machines):
@@ -190,10 +180,8 @@ class JobShopApp(ctk.CTk):
             
             baseline = jb.calculate_makespan(self.instance, seq_sol)
             
-            # Minimalist log
-            self.console.insert_log(f"File: {file_name} | Jobs: {jobs} | Machines: {machines} | Baseline: {baseline}\n")
+            self.console.log_loaded(file_name, jobs, machines, baseline)
             
-            # Update GUI
             self.header.set_instance_info(file_name, jobs, machines)
             self.header.update_status("Ready", "#8b949e")
             self.buttons.enable_optimize()
@@ -203,11 +191,10 @@ class JobShopApp(ctk.CTk):
         except Exception as e:
             error_msg = str(e)
             messagebox.showerror("Error", f"Failed to load:\n{error_msg}")
-            self.console.insert_log(f"Error: {error_msg}\n")
+            self.console.log_error(error_msg)
             self.header.update_status("Error", "#ff0000")
             self.instance = None
             return None
-
     
     def run_optimization(self):
         """Run optimization in separate thread"""
@@ -233,27 +220,36 @@ class JobShopApp(ctk.CTk):
     def _run_optimization_thread(self, params):
         """Execute optimization in thread"""
         try:
+            algorithm = params.get("algorithm", "genetic")
+            
             self.header.update_status("Running...", "#ffaa00")
             
-            # Minimalist log
-            self.console.insert_log(f"GA: pop={params['population_size']} gen={params['generations']} ")
+            if algorithm == "genetic":
+                self.console.log_ga_params(params)
+            
+            self.console.log_running(algorithm.capitalize())
             self.update_idletasks()
             
             start_time = time.time()
-            self.best_solution = jb.run_genetic(
-                self.instance,
-                params['population_size'],
-                params['generations'],
-                params['tournament_size'],
-                params['mutation_prob'],
-                params['seed']
-            )
-            elapsed_time = time.time() - start_time
             
+            if algorithm == "genetic":
+                self.best_solution = jb.run_genetic(
+                    self.instance,
+                    params['population_size'],
+                    params['generations'],
+                    params['tournament_size'],
+                    params['mutation_prob'],
+                    params['seed']
+                )
+            elif algorithm == "greedy":
+                self.best_solution = jb.greedy_schedule(self.instance)
+            elif algorithm == "exact":
+                self.best_solution = jb.solve_exact(self.instance)
+            
+            elapsed_time = time.time() - start_time
             makespan = jb.calculate_makespan(self.instance, self.best_solution)
             
-            # Minimalist log
-            self.console.insert_log(f"Done in {elapsed_time:.2f}s - Makespan: {makespan}\n")
+            self.console.log_completed(makespan, elapsed_time)
             
             self.gantt.draw_gantt(self.instance, self.best_solution)
             self.buttons.enable_export()
@@ -264,11 +260,12 @@ class JobShopApp(ctk.CTk):
             )
             
         except Exception as e:
-            self.console.insert_log(f"Error: {str(e)}\n")
+            self.console.log_error(str(e))
             self.header.update_status("Error", "#ff0000")
         finally:
             self.is_running = False
             self.buttons.enable_optimize()
+
     
     def export_schedule(self):
         """Export schedule"""
@@ -327,7 +324,7 @@ class JobShopApp(ctk.CTk):
         except Exception as e:
             self.console.insert_log(f"Export error: {str(e)}\n")
             messagebox.showerror("Error", f"Export failed:\n{str(e)}")
-
+    
     def clear_results(self):
         """Clear all results"""
         self.console.clear()

@@ -162,7 +162,6 @@ class JobShopApp(ctk.CTk):
         
         try:
             file_name = Path(file_path).name
-            self.console.insert_log(f"Loading: {file_name}\n")
             self.header.update_status(f"Loading {file_name}...", "#ffaa00")
             self.update_idletasks()
             
@@ -174,7 +173,6 @@ class JobShopApp(ctk.CTk):
             if jobs == 0 or machines == 0:
                 raise ValueError("Invalid instance")
             
-            # Calculate baseline
             seq_sol = jb.Solution()
             for j in range(jobs):
                 for op in range(machines):
@@ -182,9 +180,7 @@ class JobShopApp(ctk.CTk):
             
             baseline = jb.calculate_makespan(self.instance, seq_sol)
             
-            self.console.insert_log(
-                f"File: {file_name} | Jobs: {jobs} | Machines: {machines} | Baseline: {baseline}\n"
-            )
+            self.console.log_loaded(file_name, jobs, machines, baseline)
             
             self.header.set_instance_info(file_name, jobs, machines)
             self.header.update_status("Ready", "#8b949e")
@@ -195,7 +191,7 @@ class JobShopApp(ctk.CTk):
         except Exception as e:
             error_msg = str(e)
             messagebox.showerror("Error", f"Failed to load:\n{error_msg}")
-            self.console.insert_log(f"Error: {error_msg}\n")
+            self.console.log_error(error_msg)
             self.header.update_status("Error", "#ff0000")
             self.instance = None
             return None
@@ -228,12 +224,15 @@ class JobShopApp(ctk.CTk):
             
             self.header.update_status("Running...", "#ffaa00")
             
+            if algorithm == "genetic":
+                self.console.log_ga_params(params)
+            
+            self.console.log_running(algorithm.capitalize())
+            self.update_idletasks()
+            
             start_time = time.time()
             
             if algorithm == "genetic":
-                self.console.insert_log(
-                    f"GA: pop={params['population_size']} gen={params['generations']}\n"
-                )
                 self.best_solution = jb.run_genetic(
                     self.instance,
                     params['population_size'],
@@ -243,18 +242,14 @@ class JobShopApp(ctk.CTk):
                     params['seed']
                 )
             elif algorithm == "greedy":
-                self.console.insert_log("Running Greedy Algorithm\n")
                 self.best_solution = jb.greedy_schedule(self.instance)
             elif algorithm == "exact":
-                self.console.insert_log("Running Exact Algorithm (A*)\n")
                 self.best_solution = jb.solve_exact(self.instance)
             
             elapsed_time = time.time() - start_time
-            self.update_idletasks()
-            
             makespan = jb.calculate_makespan(self.instance, self.best_solution)
             
-            self.console.insert_log(f"Done in {elapsed_time:.2f}s - Makespan: {makespan}\n")
+            self.console.log_completed(makespan, elapsed_time)
             
             self.gantt.draw_gantt(self.instance, self.best_solution)
             self.buttons.enable_export()
@@ -265,11 +260,12 @@ class JobShopApp(ctk.CTk):
             )
             
         except Exception as e:
-            self.console.insert_log(f"Error: {str(e)}\n")
+            self.console.log_error(str(e))
             self.header.update_status("Error", "#ff0000")
         finally:
             self.is_running = False
             self.buttons.enable_optimize()
+
     
     def export_schedule(self):
         """Export schedule"""

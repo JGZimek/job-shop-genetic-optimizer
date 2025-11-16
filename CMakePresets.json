@@ -1,26 +1,84 @@
 {
   "version": 3,
   "vendor": {
-    "jobshop": {}
+    "jobshop": {
+      "autoFormat": true
+    }
   },
   "configurePresets": [
     {
       "name": "default",
-      "displayName": "Ninja Release Build",
+      "displayName": "Default (Ninja + Release)",
+      "description": "Ninja build system with Release optimization",
       "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_CXX_STANDARD": "17",
         "CMAKE_CXX_STANDARD_REQUIRED": "ON",
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.venv/Lib/site-packages/pybind11/share/cmake",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "PYBIND11_FINDPYTHON": "ON"
       },
+      "environment": {
+        "PATH": "C:/msys64/ucrt64/bin;$penv{PATH}"
+      },
+      "hidden": false
+    },
+    {
+      "name": "mingw",
+      "displayName": "MinGW Makefiles + Release",
+      "description": "MinGW build system for Windows",
+      "generator": "MinGW Makefiles",
       "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "17",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.venv/Lib/site-packages/pybind11/share/cmake",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "PYBIND11_FINDPYTHON": "ON"
+      },
+      "environment": {
+        "PATH": "C:/msys64/ucrt64/bin;$penv{PATH}"
+      },
+      "hidden": false
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug Build (Ninja)",
+      "description": "Debug build with symbols and no optimization",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "17",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.venv/Lib/site-packages/pybind11/share/cmake",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "PYBIND11_FINDPYTHON": "ON"
+      },
+      "environment": {
+        "PATH": "C:/msys64/ucrt64/bin;$penv{PATH}"
+      },
       "hidden": false
     }
   ],
   "buildPresets": [
     {
       "name": "default",
-      "configurePreset": "default"
+      "configurePreset": "default",
+      "description": "Build with default (Ninja Release)"
+    },
+    {
+      "name": "mingw",
+      "configurePreset": "mingw",
+      "description": "Build with MinGW Makefiles"
+    },
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "description": "Build in Debug mode"
     }
   ]
 }

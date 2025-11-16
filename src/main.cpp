@@ -5,6 +5,9 @@
 #include "jobshop/genetic.hpp"
 #include "jobshop/file_io.hpp"
 #include "jobshop/solution.hpp"
+#include "jobshop/greedy.hpp"
+#include "jobshop/exact.hpp"
+
 
 namespace fs = std::filesystem;
 using Clock = std::chrono::high_resolution_clock;
@@ -234,4 +237,35 @@ int main(int argc, char* argv[]) {
         std::cerr << "\nError: " << e.what() << "\n";
         return 1;
     }
+    std::cout << std::endl;
+    std::cout << "Best makespan: " << best_makespan << std::endl;
+
+    // ===  Uruchomienie algorytmu zachłannego ===
+    jobshop::Solution solution2 = jobshop::greedy_schedule(instance);
+
+    // === Wyświetlenie wyników ===
+    std::cout << "Wynikowy harmonogram (kolejność operacji):\n";
+    for (size_t i = 0; i < solution2.operation_sequence.size(); ++i) {
+        auto [job_id, op_id] = solution2.operation_sequence[i];
+        std::cout << "Operacja (" << job_id << "," << op_id << ") "
+                  << "start: " << solution2.start_times[i] << " "
+                  << "czas trwania: "
+                  << instance.jobs[job_id].operations[op_id].processing_time
+                  << "\n";
+    }
+
+    std::cout << "\nMakespan: " << solution2.makespan << " jednostek czasu\n";
+
+
+//A-Star exact solver
+std::cout << "\n=== Running exact A* solver (optimal, may still be expensive) ===\n";
+jobshop::Solution optimal = jobshop::solve_exact(instance);
+std::cout << "A* optimal makespan: " << optimal.makespan << "\n";
+std::cout << "A* optimal sequence:\n";
+for (size_t i = 0; i < optimal.operation_sequence.size(); ++i) {
+    auto [job_id, op_id] = optimal.operation_sequence[i];
+    std::cout << "(" << job_id << "," << op_id << ") start=" << optimal.start_times[i] << "\n";
+}
+
+    return 0;
 }

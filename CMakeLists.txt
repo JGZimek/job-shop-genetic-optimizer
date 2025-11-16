@@ -19,7 +19,6 @@ if(MSVC)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-Wall -Wextra -Wpedantic -Wconversion)
     if(MINGW)
-        # ✅ Usunąłem -static-libwinpthread (nie istnieje w UCRT64)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libgcc -static-libstdc++")
     endif()
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
@@ -77,7 +76,7 @@ if(NOT pybind11_FOUND)
     message(FATAL_ERROR "pybind11 not found! Install via: pip install pybind11")
 endif()
 
-message(STATUS "✓ pybind11 found at: ${pybind11_DIR}")
+message(STATUS "[OK] pybind11 found at: ${pybind11_DIR}")
 
 # ===== PYTHON BINDINGS MODULE =====
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bindings/bindings.cpp")
@@ -90,24 +89,24 @@ endif()
 
 message(STATUS "Using binding file: ${BINDING_FILE}")
 
-pybind11_add_module(jobshop_bindings 
+pybind11_add_module(bindings 
     ${BINDING_FILE}
     ${CORE_SOURCES}
 )
 
-target_include_directories(jobshop_bindings PRIVATE include)
+target_include_directories(bindings PRIVATE include)
 
-set_target_properties(jobshop_bindings PROPERTIES
+set_target_properties(bindings PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_module"
 )
 
 if(MINGW)
-    set_target_properties(jobshop_bindings PROPERTIES
+    set_target_properties(bindings PROPERTIES
         INTERPROCEDURAL_OPTIMIZATION OFF
     )
 endif()
 
-message(STATUS "✓ Python module: ${CMAKE_BINARY_DIR}/python_module")
+message(STATUS "[OK] Python module: ${CMAKE_BINARY_DIR}/python_module")
 
 # ===== CLI EXECUTABLE =====
 add_executable(jobshop_optimizer 
@@ -121,7 +120,7 @@ set_target_properties(jobshop_optimizer PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-message(STATUS "✓ CLI executable: ${CMAKE_BINARY_DIR}/bin")
+message(STATUS "[OK] CLI executable: ${CMAKE_BINARY_DIR}/bin")
 
 # ===== SUMMARY =====
 message(STATUS "")
@@ -133,6 +132,6 @@ message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "pybind11: ${pybind11_VERSION}")
 message(STATUS "")
 message(STATUS "Targets to build:")
-message(STATUS "  • Python Module: jobshop_bindings")
-message(STATUS "  • CLI Executable: jobshop_optimizer")
+message(STATUS "  - Python Module: jobshop_bindings")
+message(STATUS "  - CLI Executable: jobshop_optimizer")
 message(STATUS "")

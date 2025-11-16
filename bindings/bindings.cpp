@@ -9,7 +9,7 @@
 namespace py = pybind11;
 using namespace jobshop;
 
-PYBIND11_MODULE(jobshop_bindings, m) {
+PYBIND11_MODULE(bindings, m) {
     m.doc() = "Job Shop Scheduling with Transport Times Optimizer";
 
     // ========== STRUKTURY ==========

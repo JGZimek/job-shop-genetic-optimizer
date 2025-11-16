@@ -50,30 +50,50 @@ message(STATUS "Found core sources: ${CORE_SOURCES}")
 message(STATUS "Searching for pybind11...")
 
 set(PYBIND11_FINDPYTHON ON)
+
+# Try system-wide first
 find_package(pybind11 CONFIG QUIET)
 
+# If not found, try venv paths
+if(NOT pybind11_FOUND)
+    # Get Python executable and extract path
+    execute_process(
+        COMMAND python -c "import pybind11; print(pybind11.get_cmake_dir())"
+        OUTPUT_VARIABLE PYBIND11_CMAKE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE PYBIND11_EXEC_RESULT
+    )
+    
+    if(PYBIND11_EXEC_RESULT EQUAL 0 AND PYBIND11_CMAKE_DIR)
+        message(STATUS "Found pybind11 CMake dir: ${PYBIND11_CMAKE_DIR}")
+        find_package(pybind11 CONFIG PATHS "${PYBIND11_CMAKE_DIR}" QUIET)
+    endif()
+endif()
+
+# Fallback to common venv paths
 if(NOT pybind11_FOUND)
     if(WIN32)
         find_package(pybind11 CONFIG PATHS
             "${CMAKE_CURRENT_SOURCE_DIR}/.venv/Lib/site-packages/pybind11/share/cmake"
-            "${CMAKE_CURRENT_SOURCE_DIR}/.venv/Lib/site-packages/pybind11/share/cmake/pybind11"
-            QUIET
-        )
-    elseif(APPLE)
-        find_package(pybind11 CONFIG PATHS
-            "${CMAKE_CURRENT_SOURCE_DIR}/.venv/lib/python*/site-packages/pybind11/share/cmake"
+            "C:/Users/*/AppData/Local/*/Python*/site-packages/pybind11/share/cmake"
             QUIET
         )
     else()
+        # Linux/macOS/WSL
         find_package(pybind11 CONFIG PATHS
             "${CMAKE_CURRENT_SOURCE_DIR}/.venv/lib/python*/site-packages/pybind11/share/cmake"
+            "/home/*/.*/.venv/lib/python*/site-packages/pybind11/share/cmake"
+            "/usr/local/lib/python*/dist-packages/pybind11/share/cmake"
             QUIET
         )
     endif()
 endif()
 
 if(NOT pybind11_FOUND)
-    message(FATAL_ERROR "pybind11 not found! Install via: pip install pybind11")
+    message(FATAL_ERROR "pybind11 not found!\n"
+        "Install via: pip install pybind11\n"
+        "Then run: python -c \"import pybind11; print(pybind11.get_cmake_dir())\""
+    )
 endif()
 
 message(STATUS "[OK] pybind11 found at: ${pybind11_DIR}")

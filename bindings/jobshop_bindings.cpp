@@ -1,18 +1,16 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include "jobshop/genetic.hpp"
-#include "jobshop/greedy.hpp"
-#include "jobshop/exact.hpp"
 #include "jobshop/file_io.hpp"
 #include "jobshop/solution.hpp"
 
 namespace py = pybind11;
 using namespace jobshop;
 
-PYBIND11_MODULE(bindings, m) {
+PYBIND11_MODULE(jobshop_bindings, m) {
     m.doc() = "Job Shop Scheduling with Transport Times Optimizer";
 
-    // ========== STRUKTURY ==========
+    // --- Struktury ---
     
     // Operation
     py::class_<Operation>(m, "Operation")
@@ -42,21 +40,17 @@ PYBIND11_MODULE(bindings, m) {
         .def_readwrite("start_times", &Solution::start_times)
         .def_readwrite("makespan", &Solution::makespan);
 
-    // ========== FILE I/O ==========
+    // --- Funkcje ---
     
+    // File I/O
     m.def("load_instance_from_file", &load_instance_from_file, 
-          py::arg("filename"),
-          "Load instance from file (TXT/CSV format)");
+          "Load instance from file");
     
-    // ========== SOLUTION CALCULATION ==========
-    
+    // Solution calculation
     m.def("calculate_makespan", &calculate_makespan, 
-          py::arg("instance"),
-          py::arg("solution"),
           "Calculate makespan for a solution");
 
-    // ========== GENETIC ALGORITHM ==========
-    
+    // Genetic Algorithm
     m.def("generate_random_solution", &generate_random_solution,
           py::arg("instance"),
           py::arg("seed") = 0,
@@ -94,16 +88,4 @@ PYBIND11_MODULE(bindings, m) {
           py::arg("mutation_prob"),
           py::arg("seed") = 0,
           "Run genetic algorithm");
-
-    // ========== GREEDY ALGORITHM ==========
-    
-    m.def("greedy_schedule", &greedy_schedule,
-          py::arg("instance"),
-          "Run greedy scheduling algorithm");
-
-    // ========== EXACT ALGORITHM ==========
-    
-    m.def("solve_exact", &solve_exact,
-          py::arg("instance"),
-          "Run exact algorithm (A* search)");
 }

@@ -68,6 +68,39 @@ void print_help(const char* program_name) {
     std::cout << "\n";
 }
 
+void print_schedule(const JobShopInstance& instance, const Solution& solution, 
+                    const std::string& algorithm_name) {
+    std::cout << "\n=== Schedule for " << algorithm_name << " ===" << std::endl;
+    
+    // Create a 2D array to track job operations
+    std::vector<std::vector<int>> schedule(instance.num_machines);
+    
+    // Build schedule from solution
+    for (size_t op = 0; op < solution.operation_sequence.size(); ++op) {
+        auto [job_id, operation_idx] = solution.operation_sequence[op];
+        
+        if (job_id >= instance.jobs.size() || 
+            operation_idx >= instance.jobs[job_id].operations.size()) {
+            continue;
+        }
+        
+        const auto& operation = instance.jobs[job_id].operations[operation_idx];
+        schedule[operation.machine_id].push_back(static_cast<int>(job_id));  // ← CAST
+    }
+    
+    // Print schedule
+    for (size_t m = 0; m < instance.num_machines; ++m) {
+        std::cout << "Machine " << m << ": ";
+        for (int job : schedule[m]) {
+            std::cout << "J" << job << " ";
+        }
+        std::cout << std::endl;
+    }
+    
+    std::cout << "Makespan: " << solution.makespan << std::endl;
+    std::cout << std::endl;
+}
+
 
 int main(int argc, char* argv[]) {
     // Check for help flag FIRST
@@ -160,9 +193,10 @@ int main(int argc, char* argv[]) {
         }
         
         std::cout << "Makespan: " << sol_greedy.makespan << std::endl;
-        std::cout << "Time: " << duration.count() << " ms\n" << std::endl;
+        std::cout << "Time: " << duration.count() << " ms" << std::endl;
+        print_schedule(instance, sol_greedy, "Greedy");
     }
-    
+
     // ===== EXACT =====
     if (algorithm == "all" || algorithm == "exact") {
         std::cout << "--- Exact Algorithm (A*) ---" << std::endl;
@@ -178,14 +212,15 @@ int main(int argc, char* argv[]) {
             }
             
             std::cout << "Makespan: " << sol_exact.makespan << std::endl;
-            std::cout << "Time: " << duration.count() << " ms\n" << std::endl;
+            std::cout << "Time: " << duration.count() << " ms" << std::endl;
+            print_schedule(instance, sol_exact, "Exact (A*)");
         } else {
             std::cout << "Skipped - Instance too large for exact solver" << std::endl;
             std::cout << "Maximum size: 4x3, Current: " << instance.jobs.size() 
-                      << "x" << instance.num_machines << "\n" << std::endl;
+                    << "x" << instance.num_machines << std::endl;
         }
     }
-    
+
     // ===== GENETIC =====
     if (algorithm == "all" || algorithm == "genetic") {
         std::cout << "--- Genetic Algorithm ---" << std::endl;
@@ -197,7 +232,7 @@ int main(int argc, char* argv[]) {
         
         auto start = std::chrono::high_resolution_clock::now();
         Solution sol_genetic = run_genetic(instance, pop_size, generations, 
-                                          tournament_size, mutation_prob, 42);
+                                        tournament_size, mutation_prob, 42);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         
@@ -206,7 +241,8 @@ int main(int argc, char* argv[]) {
         }
         
         std::cout << "Makespan: " << sol_genetic.makespan << std::endl;
-        std::cout << "Time: " << duration.count() << " ms\n" << std::endl;
+        std::cout << "Time: " << duration.count() << " ms" << std::endl;
+        print_schedule(instance, sol_genetic, "Genetic");
     }
     
     return 0;

@@ -85,7 +85,7 @@ void print_schedule(const JobShopInstance& instance, const Solution& solution,
         }
         
         const auto& operation = instance.jobs[job_id].operations[operation_idx];
-        schedule[operation.machine_id].push_back(static_cast<int>(job_id));  // ← CAST
+        schedule[operation.machine_id].push_back(static_cast<int>(job_id));
     }
     
     // Print schedule
@@ -201,7 +201,29 @@ int main(int argc, char* argv[]) {
     if (algorithm == "all" || algorithm == "exact") {
         std::cout << "--- Exact Algorithm (A*) ---" << std::endl;
         
+        bool run_exact = false;
+        
+        // Check heuristics for "safe" size (approx 4 jobs, 3 machines is very safe)
         if (instance.jobs.size() <= 4 && instance.num_machines <= 3) {
+            run_exact = true;
+        } else {
+            std::cout << "Warning: Instance size (" << instance.jobs.size() << "x" << instance.num_machines 
+                      << ") is large for the exact solver (Exponential Complexity).\n";
+            std::cout << "This might take a very long time or consume all memory.\n";
+            std::cout << "Do you want to proceed? (y/N): ";
+            
+            char response;
+            std::cin >> response;
+            
+            if (std::tolower(response) == 'y') {
+                run_exact = true;
+            } else {
+                std::cout << "Skipped Exact Algorithm." << std::endl;
+            }
+        }
+
+        if (run_exact) {
+            std::cout << "Running Exact Solver..." << std::endl;
             auto start = std::chrono::high_resolution_clock::now();
             Solution sol_exact = solve_exact(instance);
             auto end = std::chrono::high_resolution_clock::now();
@@ -214,10 +236,6 @@ int main(int argc, char* argv[]) {
             std::cout << "Makespan: " << sol_exact.makespan << std::endl;
             std::cout << "Time: " << duration.count() << " ms" << std::endl;
             print_schedule(instance, sol_exact, "Exact (A*)");
-        } else {
-            std::cout << "Skipped - Instance too large for exact solver" << std::endl;
-            std::cout << "Maximum size: 4x3, Current: " << instance.jobs.size() 
-                    << "x" << instance.num_machines << std::endl;
         }
     }
 
@@ -232,7 +250,7 @@ int main(int argc, char* argv[]) {
         
         auto start = std::chrono::high_resolution_clock::now();
         Solution sol_genetic = run_genetic(instance, pop_size, generations, 
-                                        tournament_size, mutation_prob, 42);
+                                           tournament_size, mutation_prob, 42);
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         

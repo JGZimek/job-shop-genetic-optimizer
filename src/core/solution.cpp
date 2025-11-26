@@ -7,6 +7,7 @@ int calculate_makespan(const JobShopInstance& instance, Solution& solution) {
     size_t n_ops = solution.operation_sequence.size();
     solution.start_times.assign(n_ops, 0);
 
+    // TODO: do usuniecia
     // Mapowanie operacji na indeks w solution.operation_sequence
     std::unordered_map<size_t, std::unordered_map<size_t, size_t>> op_index_map;
     for (size_t i = 0; i < n_ops; ++i) {
@@ -19,6 +20,7 @@ int calculate_makespan(const JobShopInstance& instance, Solution& solution) {
     std::vector<int> machine_available(instance.num_machines, 0);
     // Śledzenie czasu zakończenia ostatniej operacji w zadaniu
     std::vector<int> job_last_finish(instance.jobs.size(), 0);
+    // TODO: do usuniecia
     // Śledzenie maszyny poprzedniej operacji w zadaniu
     std::vector<size_t> job_last_machine(instance.jobs.size(), 0);
 

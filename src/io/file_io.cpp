@@ -116,7 +116,7 @@ JobShopInstance parse_txt_format(std::ifstream& file) {
                     throw std::runtime_error("Invalid machine ID");
                 }
                 instance.jobs[j].operations[op].machine_id = machine_id;
-                instance.jobs[j].operations[op].job_id = j;
+                instance.jobs[j].operations[op].job_id = j; // TODO: do usuniecia
                 instance.jobs[j].operations[op].operation_id = op;
             } catch (const std::exception&) {
                 throw std::runtime_error("Line " + std::to_string(line_num) +

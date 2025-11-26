@@ -11,7 +11,7 @@
 namespace jobshop {
 
 struct Operation {
-    std::size_t job_id;
+    std::size_t job_id; // TODO: do usuniecia
     std::size_t operation_id;
     std::size_t machine_id;
     int processing_time;

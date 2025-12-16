@@ -1,16 +1,18 @@
 import customtkinter as ctk
 from tkinter import filedialog
 from pathlib import Path
-
+import os
 
 class ExportDialog(ctk.CTkToplevel):
-    """Modal dialog dla wyboru eksportu"""
+    """
+    Kompaktowe okno wyboru eksportu.
+    """
     
     def __init__(self, parent):
         super().__init__(parent)
         
-        self.title("Export Schedule")
-        self.geometry("450x420")
+        self.title("Export")
+        self.geometry("340x320") # Znacznie mniejszy rozmiar
         self.resizable(False, False)
         
         # Center on parent
@@ -24,141 +26,138 @@ class ExportDialog(ctk.CTkToplevel):
         self.save_path = None
         self.result = None
         
-        # Main frame
-        main_frame = ctk.CTkFrame(self, fg_color="#161b22", corner_radius=0)
-        main_frame.pack(fill="both", expand=True, padx=0, pady=0)
+        # Główny kontener (bez marginesów zewnętrznych)
+        self.configure(fg_color="#161b22")
         
-        # Content frame
-        content = ctk.CTkFrame(main_frame, fg_color="#161b22")
-        content.pack(fill="both", expand=True, padx=20, pady=20)
+        # --- 1. WYBÓR FORMATU ---
+        format_frame = ctk.CTkFrame(self, fg_color="transparent")
+        format_frame.pack(fill="x", padx=15, pady=(15, 5))
         
-        # Section: Format Selection
-        format_label = ctk.CTkLabel(
-            content,
-            text="Export Formats",
-            font=("Segoe UI", 12, "bold"),
+        ctk.CTkLabel(
+            format_frame, 
+            text="Formats", 
+            font=("Segoe UI", 12, "bold"), 
             text_color="#ffffff"
-        )
-        format_label.pack(anchor="w", pady=(0, 12))
+        ).pack(anchor="w", pady=(0, 5))
         
-        # Checkboxy w frame'u
-        check_frame = ctk.CTkFrame(content, fg_color="#0d1117", corner_radius=8)
-        check_frame.pack(fill="x", pady=(0, 20))
+        # Ciemniejsze tło dla checkboxów
+        check_bg = ctk.CTkFrame(format_frame, fg_color="#0d1117", border_color="#30363d", border_width=1)
+        check_bg.pack(fill="x")
         
-        self.csv_check = ctk.CTkCheckBox(
-            check_frame,
-            text="CSV (Table with operation details)",
-            variable=self.csv_var,
-            font=("Segoe UI", 11),
-            fg_color="#0078ff",
-            hover_color="#0066cc"
-        )
-        self.csv_check.pack(anchor="w", padx=12, pady=8)
+        # Checkboxy gęsto upakowane
+        self._make_checkbox(check_bg, "CSV (Data Table)", self.csv_var)
+        self._make_checkbox(check_bg, "JSON (Raw Data)", self.json_var)
+        self._make_checkbox(check_bg, "PNG (Gantt Chart)", self.png_var)
         
-        self.json_check = ctk.CTkCheckBox(
-            check_frame,
-            text="JSON (Structured data format)",
-            variable=self.json_var,
-            font=("Segoe UI", 11),
-            fg_color="#0078ff",
-            hover_color="#0066cc"
-        )
-        self.json_check.pack(anchor="w", padx=12, pady=8)
+        # --- 2. LOKALIZACJA ---
+        path_frame = ctk.CTkFrame(self, fg_color="transparent")
+        path_frame.pack(fill="x", padx=15, pady=10)
         
-        self.png_check = ctk.CTkCheckBox(
-            check_frame,
-            text="PNG (Gantt chart visualization)",
-            variable=self.png_var,
-            font=("Segoe UI", 11),
-            fg_color="#0078ff",
-            hover_color="#0066cc"
-        )
-        self.png_check.pack(anchor="w", padx=12, pady=8)
-        
-        # Section: Save Location
-        path_label = ctk.CTkLabel(
-            content,
-            text="Save Location",
-            font=("Segoe UI", 12, "bold"),
+        ctk.CTkLabel(
+            path_frame, 
+            text="Destination Folder", 
+            font=("Segoe UI", 12, "bold"), 
             text_color="#ffffff"
-        )
-        path_label.pack(anchor="w", pady=(20, 12))
+        ).pack(anchor="w", pady=(0, 5))
         
-        # Path frame
-        path_frame = ctk.CTkFrame(content, fg_color="#0d1117", corner_radius=8)
-        path_frame.pack(fill="x", pady=(0, 20))
+        # Input group (Entry + Button w jednej linii)
+        input_group = ctk.CTkFrame(path_frame, fg_color="transparent")
+        input_group.pack(fill="x")
         
-        self.path_label = ctk.CTkLabel(
-            path_frame,
-            text="Click Browse to select folder",
-            text_color="#8b949e",
-            font=("Segoe UI", 10)
+        # Pole tekstowe (wygląda lepiej niż label) - ReadOnly
+        self.path_entry = ctk.CTkEntry(
+            input_group,
+            placeholder_text="No folder selected...",
+            fg_color="#0d1117",
+            border_color="#30363d",
+            text_color="#e6edf3",
+            height=30,
+            font=("Segoe UI", 11)
         )
-        self.path_label.pack(side="left", padx=12, pady=12)
+        self.path_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         
         browse_btn = ctk.CTkButton(
-            path_frame,
+            input_group,
             text="Browse",
             command=self._browse_folder,
-            fg_color="#0078ff",
-            hover_color="#0066cc",
-            width=100,
-            font=("Segoe UI", 11, "bold")
+            fg_color="#0d1117", # Ciemny przycisk
+            border_color="#30363d",
+            border_width=1,
+            hover_color="#1f2428",
+            width=70,
+            height=30,
+            font=("Segoe UI", 11)
         )
-        browse_btn.pack(side="right", padx=12, pady=8)
+        browse_btn.pack(side="right")
         
-        # Buttons frame
-        button_frame = ctk.CTkFrame(main_frame, fg_color="#161b22")
-        button_frame.pack(fill="x", padx=20, pady=15)
+        # --- 3. PRZYCISKI AKCJI ---
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(side="bottom", fill="x", padx=15, pady=15)
         
-        cancel_btn = ctk.CTkButton(
-            button_frame,
+        ctk.CTkButton(
+            btn_frame,
             text="Cancel",
             command=self._on_cancel,
-            fg_color="#da3633",
-            hover_color="#f85149",
-            font=("Segoe UI", 11, "bold"),
-            height=35
-        )
-        cancel_btn.pack(side="left", fill="x", expand=True, padx=(0, 5))
+            fg_color="transparent",
+            border_color="#30363d",
+            border_width=1,
+            hover_color="#30363d",
+            height=32,
+            font=("Segoe UI", 11),
+            width=80
+        ).pack(side="left")
         
-        save_btn = ctk.CTkButton(
-            button_frame,
-            text="Save",
+        ctk.CTkButton(
+            btn_frame,
+            text="Export",
             command=self._on_save,
-            fg_color="#238636",
+            fg_color="#238636", # Zielony GitHub
             hover_color="#2ea043",
-            font=("Segoe UI", 11, "bold"),
-            height=35
-        )
-        save_btn.pack(side="right", fill="x", expand=True, padx=(5, 0))
-    
+            height=32,
+            font=("Segoe UI", 11, "bold")
+        ).pack(side="right", fill="x", expand=True, padx=(10, 0))
+
+    def _make_checkbox(self, parent, text, variable):
+        """Helper do tworzenia małych checkboxów"""
+        ctk.CTkCheckBox(
+            parent,
+            text=text,
+            variable=variable,
+            font=("Segoe UI", 11),
+            fg_color="#0078ff",
+            hover_color="#0066cc",
+            border_width=2,
+            checkbox_width=18,
+            checkbox_height=18
+        ).pack(anchor="w", padx=10, pady=6)
+
     def _browse_folder(self):
-        """Wybierz folder"""
         folder = filedialog.askdirectory(title="Select Export Folder")
         if folder:
             self.save_path = Path(folder)
-            self.path_label.configure(
-                text=str(self.save_path),
-                text_color="#ffffff"
-            )
-    
+            # Aktualizacja pola tekstowego
+            self.path_entry.configure(state="normal")
+            self.path_entry.delete(0, "end")
+            self.path_entry.insert(0, str(self.save_path))
+            self.path_entry.configure(state="readonly") # Z powrotem tylko do odczytu
+
     def _on_save(self):
-        """Zapisz"""
+        # Walidacja ścieżki
         if not self.save_path:
-            self.path_label.configure(
-                text="Please choose a folder first!",
-                text_color="#ff0000"
-            )
+            self.path_entry.configure(border_color="#cf222e") # Czerwona ramka błędu
             return
         
+        # Sprawdź zapisywalność
+        if not os.access(self.save_path, os.W_OK):
+             from tkinter import messagebox
+             messagebox.showerror("Error", "Selected folder is not writable!")
+             return
+
+        # Walidacja formatów
         if not (self.csv_var.get() or self.json_var.get() or self.png_var.get()):
-            self.path_label.configure(
-                text="Select at least one export format!",
-                text_color="#ff0000"
-            )
+            # Można tu mignąć ramką checkboxów, ale prościej zablokować akcję
             return
-        
+
         self.result = {
             'path': self.save_path,
             'csv': self.csv_var.get(),
@@ -166,8 +165,7 @@ class ExportDialog(ctk.CTkToplevel):
             'png': self.png_var.get()
         }
         self.destroy()
-    
+
     def _on_cancel(self):
-        """Anuluj"""
         self.result = None
         self.destroy()

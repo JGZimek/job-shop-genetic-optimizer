@@ -1,9 +1,14 @@
 import customtkinter as ctk
-from gui.config import FONT_SUBTITLE, FONT_NORMAL, DEFAULT_PARAMS
-
+from gui.config import DEFAULT_PARAMS
+# Importujemy StatusDialog i kolory z zewnętrznego pliku, 
+# aby zachować spójność z resztą aplikacji (np. exportem w main.py)
+from gui.dialogs.status_dialog import StatusDialog, COLOR_ERROR, COLOR_WARNING, COLOR_NORMAL
 
 class SidebarFrame(ctk.CTkFrame):
-    """Lewy panel z parametrami"""
+    """
+    Panel boczny MAX ROBUST.
+    Zapewnia walidację danych, obsługę błędów krytycznych i ostrzeżeń wydajnościowych.
+    """
     
     def __init__(self, parent, on_instance_load=None, on_algorithm_change=None, **kwargs):
         super().__init__(parent, fg_color="#161b22", corner_radius=12, **kwargs)
@@ -13,270 +18,224 @@ class SidebarFrame(ctk.CTkFrame):
         self.instance_loaded = False
         self.selected_algorithm = "genetic"
         
-        self.scrollable_frame = ctk.CTkScrollableFrame(
-            self,
-            fg_color="#161b22",
-            scrollbar_button_color="#30363d",
-            scrollbar_button_hover_color="#484f58"
-        )
-        self.scrollable_frame.pack(fill="both", expand=True, padx=0, pady=0, side="top")
+        # --- 1. HARD LIMITS (Błędy Techniczne) ---
+        # Przekroczenie tych wartości uniemożliwia uruchomienie algorytmu (blokada).
+        self.constraints = {
+            "population_size": {"type": int, "min": 10, "max": 1_000_000},
+            "generations":     {"type": int, "min": 1, "max": 1_000_000},
+            "tournament_size": {"type": int, "min": 1, "max": None}, 
+            "mutation_prob":   {"type": float, "min": 0.0, "max": 1.0},
+            "seed":            {"type": int, "min": 0, "max": 4294967295} # uint32 max
+        }
+
+        # --- 2. SOFT LIMITS (Ostrzeżenia Wydajności) ---
+        # Przekroczenie tych wartości wyświetla ostrzeżenie, ale pozwala kontynuować.
+        self.soft_limits = {
+            "population_size": 5000, 
+            "generations":     10000,
+            "tournament_size": 500
+        }
+
+        # --- UI START ---
+        self.scrollable_frame = ctk.CTkScrollableFrame(self, fg_color="#161b22")
+        self.scrollable_frame.pack(fill="both", expand=True, side="top")
         
-        # --- Instance ---
+        self._setup_file_section()
+        self._setup_algo_section()
+        
+        # Kontener na parametry genetyczne
+        self.ga_container = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
+        ctk.CTkLabel(self.ga_container, text="GA Parameters", font=("Segoe UI", 13, "bold"), text_color="white").pack(anchor="w", pady=(0, 10))
+        
+        self.params_widgets = {}
+        for param in ["population_size", "generations", "tournament_size", "mutation_prob", "seed"]:
+            self._create_param_field(param)
+
+        # Kontenery informacyjne (Greedy / Exact)
+        self.greedy_container = self._create_info_container("Greedy Algorithm", "Fast heuristic approach.", "white")
+        self.exact_container = self._create_info_container("Exact Algorithm (A*)", "Guaranteed optimal solution.", "white")
+        ctk.CTkLabel(self.exact_container, text="⚠️ Only for small instances (< 4x4).", text_color=COLOR_WARNING, font=("Segoe UI", 11)).pack(anchor="w")
+
+        self._update_param_visibility()
+
+    def _create_param_field(self, param_key):
+        """Tworzy pole edycyjne z etykietą i bindingiem walidacji"""
+        display_name = param_key.replace("_", " ").title()
+        if param_key == "seed": display_name = "Random Seed (0=Random)"
+        
+        frame = ctk.CTkFrame(self.ga_container, fg_color="transparent")
+        frame.pack(fill="x", pady=2)
+        
+        ctk.CTkLabel(frame, text=f"{display_name}:", text_color="white").pack(anchor="w", pady=(5, 2))
+        
+        entry = ctk.CTkEntry(frame, fg_color="#0d1117", border_color=COLOR_NORMAL, text_color="white")
+        entry.insert(0, str(DEFAULT_PARAMS.get(param_key, 0)))
+        entry.pack(fill="x", pady=(0, 5))
+        
+        # Live feedback: Walidacja kolorystyczna przy opuszczeniu pola lub wciśnięciu Enter
+        entry.bind("<FocusOut>", lambda e, k=param_key: self._validate_field_live(k))
+        entry.bind("<Return>", lambda e, k=param_key: self._validate_field_live(k))
+        
+        self.params_widgets[param_key] = entry
+
+    def _validate_field_live(self, key):
+        """
+        Szybka walidacja wizualna (zmienia tylko kolory ramki).
+        Nie blokuje UI, daje natychmiastowy feedback.
+        """
+        entry = self.params_widgets.get(key)
+        raw_val = entry.get().strip()
+        constraint = self.constraints.get(key)
+        
+        # Jeśli puste, ignoruj (get_parameters wyłapie to później jako błąd)
+        if not raw_val: return 
+        
+        try:
+            # Konwersja (obsługa kropki i przecinka)
+            val = int(raw_val) if constraint["type"] is int else float(raw_val.replace(",", "."))
+            
+            # 1. Sprawdzenie Błędu (Czerwony)
+            if (constraint["min"] is not None and val < constraint["min"]) or \
+               (constraint["max"] is not None and val > constraint["max"]):
+                entry.configure(border_color=COLOR_ERROR)
+                return
+
+            # 2. Sprawdzenie Ostrzeżenia (Pomarańczowy)
+            soft_limit = self.soft_limits.get(key)
+            if soft_limit and val > soft_limit:
+                entry.configure(border_color=COLOR_WARNING)
+            else:
+                entry.configure(border_color=COLOR_NORMAL) # OK (Szary)
+
+        except ValueError:
+            entry.configure(border_color=COLOR_ERROR)
+
+    def get_parameters(self):
+        """
+        Główna metoda pobierania parametrów.
+        Zwraca słownik parametrów LUB None.
+        Obsługuje WSZYSTKIE komunikaty (Błędy i Ostrzeżenia) używając StatusDialog.
+        """
+        # Dla algorytmów bez parametrów od razu zwracamy wynik
+        if self.selected_algorithm != "genetic":
+            return {"algorithm": self.selected_algorithm}
+
+        clean_params = {"algorithm": "genetic"}
+        errors_list = []
+        warnings_list = []
+        
+        # 1. Iteracja po wszystkich polach i walidacja
+        for key, widget in self.params_widgets.items():
+            raw_val = widget.get().strip()
+            constraint = self.constraints[key]
+            nice_name = key.replace("_", " ").title()
+
+            try:
+                if not raw_val: raise ValueError("Field cannot be empty")
+                
+                # Konwersja typów
+                if constraint["type"] is int:
+                    val = int(raw_val)
+                else:
+                    val = float(raw_val.replace(",", "."))
+
+                # Sprawdzenie Hard Limits (Błędy krytyczne)
+                if constraint["min"] is not None and val < constraint["min"]:
+                    raise ValueError(f"Value too small (min: {constraint['min']})")
+                if constraint["max"] is not None and val > constraint["max"]:
+                    raise ValueError(f"Value too large (max: {constraint['max']})")
+
+                clean_params[key] = val
+                
+                # Sprawdzenie Soft Limits (Ostrzeżenia wydajności)
+                soft_limit = self.soft_limits.get(key)
+                if soft_limit and val > soft_limit:
+                    warnings_list.append(f"• {nice_name}: {val}\n  (Recommended max: {soft_limit})")
+
+            except ValueError as e:
+                # Formatowanie komunikatu błędu
+                msg = str(e).replace('invalid literal for int() with base 10:', 'Must be a valid number')
+                errors_list.append(f"• {nice_name}: {msg}")
+                widget.configure(border_color=COLOR_ERROR)
+
+        # 2. Walidacja logiczna (zależności między parametrami)
+        if "population_size" in clean_params and "tournament_size" in clean_params:
+            if clean_params["tournament_size"] > clean_params["population_size"]:
+                errors_list.append("• Tournament Size: Cannot be larger than Population Size")
+                self.params_widgets["tournament_size"].configure(border_color=COLOR_ERROR)
+
+        # 3. Wyświetlanie Okien Dialogowych (Priorytet: Błędy -> Ostrzeżenia -> Sukces)
+        
+        # SCENARIUSZ A: Błędy Krytyczne -> Blokujemy start
+        if errors_list:
+            StatusDialog(
+                self.winfo_toplevel(),
+                title="Configuration Error",
+                message="Please fix the following errors before starting the algorithm:",
+                details="\n".join(errors_list),
+                type_="error"
+            )
+            return None # Zwracamy None, main.py nie uruchomi wątku
+
+        # SCENARIUSZ B: Ostrzeżenia -> Pytamy użytkownika
+        if warnings_list:
+            dialog = StatusDialog(
+                self.winfo_toplevel(),
+                title="Performance Warning",
+                message="The parameters you entered are unusually high. This may cause the algorithm to run for a very long time.",
+                details="\n".join(warnings_list),
+                type_="warning"
+            )
+            
+            # Jeśli użytkownik kliknie "Cancel", przerywamy
+            if not dialog.result:
+                return None 
+        
+        # SCENARIUSZ C: Wszystko OK (lub użytkownik zaakceptował ryzyko)
+        return clean_params
+
+    # --- Metody pomocnicze UI (bez zmian logicznych) ---
+    def _setup_file_section(self):
         self._create_section("Load Instance")
-        
-        self.instance_file = ctk.CTkEntry(
-            self.scrollable_frame,
-            placeholder_text="No file selected",
-            fg_color="#0d1117",
-            border_color="#30363d",
-            text_color="#ffffff"
-        )
+        self.instance_file = ctk.CTkEntry(self.scrollable_frame, placeholder_text="No file", fg_color="#0d1117", state="readonly")
         self.instance_file.pack(fill="x", pady=5)
-        
-        self.browse_btn = ctk.CTkButton(
-            self.scrollable_frame,
-            text="Browse Files",
-            command=self._on_browse,
-            fg_color="#0078ff",
-            hover_color="#0066cc"
-        )
-        self.browse_btn.pack(fill="x", pady=5)
-        
+        ctk.CTkButton(self.scrollable_frame, text="Browse Files", command=self._on_browse).pack(fill="x", pady=5)
         self._create_separator()
-        
-        # --- Algorithm Selection ---
+
+    def _setup_algo_section(self):
         self._create_section("Algorithm")
-        
-        self.algorithm_dropdown = ctk.CTkOptionMenu(
-            self.scrollable_frame,
-            values=["Genetic", "Greedy", "Exact (A*)"],
-            command=self._on_algorithm_change,
-            fg_color="#0078ff",
-            button_color="#0066cc",
-            button_hover_color="#0055aa",
-            text_color="#ffffff"
-        )
+        self.algorithm_dropdown = ctk.CTkOptionMenu(self.scrollable_frame, values=["Genetic", "Greedy", "Exact (A*)"], command=self._on_algorithm_change)
         self.algorithm_dropdown.set("Genetic")
         self.algorithm_dropdown.pack(fill="x", pady=5)
-        
         self._create_separator()
         
-        # --- GA Parameters Section ---
-        self.ga_section_label = ctk.CTkLabel(
-            self.scrollable_frame,
-            text="GA Parameters",
-            font=("Segoe UI", 13, "bold"),
-            text_color="#ffffff"
-        )
-        self.ga_section_label.pack(anchor="w", pady=(15, 10))
-        
-        self.params = {}
-        self.param_labels = {}
-        self.param_entries = {}
-        
-        for param_name, default_value in DEFAULT_PARAMS.items():
-            if param_name != "seed":
-                display_name = param_name.replace("_", " ").title()
-                
-                label = ctk.CTkLabel(
-                    self.scrollable_frame,
-                    text=f"{display_name}:",
-                    text_color="#ffffff"
-                )
-                label.pack(anchor="w", pady=(8, 2))
-                
-                entry = ctk.CTkEntry(
-                    self.scrollable_frame,
-                    fg_color="#0d1117",
-                    border_color="#30363d",
-                    text_color="#ffffff"
-                )
-                entry.insert(0, str(default_value))
-                entry.pack(fill="x", pady=(0, 10))
-                
-                self.params[param_name] = entry
-                self.param_labels[param_name] = label
-                self.param_entries[param_name] = entry
-        
-        # Seed
-        seed_label = ctk.CTkLabel(
-            self.scrollable_frame,
-            text="Random Seed (0=random):",
-            text_color="#ffffff"
-        )
-        seed_label.pack(anchor="w", pady=(8, 2))
-        
-        seed_entry = ctk.CTkEntry(
-            self.scrollable_frame,
-            fg_color="#0d1117",
-            border_color="#30363d",
-            text_color="#ffffff"
-        )
-        seed_entry.insert(0, str(DEFAULT_PARAMS["seed"]))
-        seed_entry.pack(fill="x", pady=(0, 10))
-        
-        self.params["seed"] = seed_entry
-        self.param_labels["seed"] = seed_label
-        self.param_entries["seed"] = seed_entry
-        
-        # --- Greedy Info Section ---
-        self.greedy_info_label = ctk.CTkLabel(
-            self.scrollable_frame,
-            text="Greedy Algorithm",
-            font=("Segoe UI", 13, "bold"),
-            text_color="#ffffff"
-        )
-        
-        self.greedy_info = ctk.CTkLabel(
-            self.scrollable_frame,
-            text="Fast heuristic approach. Suitable for all instance sizes. Provides approximate solution.",
-            text_color="#8b949e",
-            font=("Segoe UI", 11),
-            wraplength=200,
-            justify="left"
-        )
-        
-        # --- Exact Info Section ---
-        self.exact_section_label = ctk.CTkLabel(
-            self.scrollable_frame,
-            text="Exact Algorithm (A*)",
-            font=("Segoe UI", 13, "bold"),
-            text_color="#ffffff"
-        )
-        
-        self.exact_warning = ctk.CTkLabel(
-            self.scrollable_frame,
-            text="Not recommended for instances larger than 4x3 (4 jobs, 3 machines). Due to high computational complexity, solving larger instances may take extremely long or require excessive memory.",
-            text_color="#ff9800",
-            font=("Segoe UI", 11),
-            wraplength=200,
-            justify="left"
-        )
-        
-        self.exact_info = ctk.CTkLabel(
-            self.scrollable_frame,
-            text="Guaranteed optimal solution. A* search with admissible heuristic.",
-            text_color="#8b949e",
-            font=("Segoe UI", 11),
-            wraplength=200,
-            justify="left"
-        )
-        
-        # Initialize visibility (defaultowo genetic)
-        self._update_param_visibility()
-    
     def _create_section(self, title):
-        """Utwórz sekcję z tytułem"""
-        section_label = ctk.CTkLabel(
-            self.scrollable_frame,
-            text=title,
-            font=("Segoe UI", 13, "bold"),
-            text_color="#ffffff"
-        )
-        section_label.pack(anchor="w", pady=(15, 10))
+        ctk.CTkLabel(self.scrollable_frame, text=title, font=("Segoe UI", 13, "bold"), text_color="white").pack(anchor="w", pady=(15, 10))
     
     def _create_separator(self):
-        """Utwórz separator"""
-        separator = ctk.CTkFrame(
-            self.scrollable_frame,
-            height=1,
-            fg_color="#30363d"
-        )
-        separator.pack(fill="x", pady=15)
-    
+        ctk.CTkFrame(self.scrollable_frame, height=1, fg_color=COLOR_NORMAL).pack(fill="x", pady=15)
+        
+    def _create_info_container(self, title, desc, col):
+        f = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
+        ctk.CTkLabel(f, text=title, font=("Segoe UI", 13, "bold"), text_color="white").pack(anchor="w", pady=(0, 10))
+        ctk.CTkLabel(f, text=desc, text_color=col, font=("Segoe UI", 11), wraplength=200, justify="left").pack(anchor="w")
+        return f
+        
     def _on_algorithm_change(self, choice):
-        """Zmiana algorytmu"""
-        if choice == "Genetic":
-            self.selected_algorithm = "genetic"
-        elif choice == "Greedy":
-            self.selected_algorithm = "greedy"
-        elif choice == "Exact (A*)":
-            self.selected_algorithm = "exact"
-        
+        self.selected_algorithm = {"Genetic": "genetic", "Greedy": "greedy", "Exact (A*)": "exact"}.get(choice, "genetic")
         self._update_param_visibility()
-    
+        if self.on_algorithm_change_callback: self.on_algorithm_change_callback(self.selected_algorithm)
+        
     def _update_param_visibility(self):
-        """Pokaż/ukryj parametry i wskazówki w zależności od algorytmu"""
-        ga_params = ["population_size", "generations", "tournament_size", "mutation_prob", "seed"]
+        self.ga_container.pack_forget(); self.greedy_container.pack_forget(); self.exact_container.pack_forget()
+        if self.selected_algorithm == "genetic": self.ga_container.pack(fill="x")
+        elif self.selected_algorithm == "greedy": self.greedy_container.pack(fill="x")
+        elif self.selected_algorithm == "exact": self.exact_container.pack(fill="x")
         
-        if self.selected_algorithm == "genetic":
-            # Pokaż GA sekcję
-            self.ga_section_label.pack(anchor="w", pady=(15, 10))
-            for param in ga_params:
-                self.param_labels[param].pack(anchor="w", pady=(8, 2))
-                self.param_entries[param].pack(fill="x", pady=(0, 10))
-            
-            # Ukryj inne
-            self.greedy_info_label.pack_forget()
-            self.greedy_info.pack_forget()
-            self.exact_section_label.pack_forget()
-            self.exact_warning.pack_forget()
-            self.exact_info.pack_forget()
-        
-        elif self.selected_algorithm == "greedy":
-            # Ukryj GA sekcję
-            self.ga_section_label.pack_forget()
-            for param in ga_params:
-                self.param_labels[param].pack_forget()
-                self.param_entries[param].pack_forget()
-            
-            # Pokaż Greedy info
-            self.greedy_info_label.pack(anchor="w", pady=(15, 10))
-            self.greedy_info.pack(anchor="w", pady=10)
-            
-            # Ukryj Exact
-            self.exact_section_label.pack_forget()
-            self.exact_warning.pack_forget()
-            self.exact_info.pack_forget()
-        
-        elif self.selected_algorithm == "exact":
-            # Ukryj GA sekcję
-            self.ga_section_label.pack_forget()
-            for param in ga_params:
-                self.param_labels[param].pack_forget()
-                self.param_entries[param].pack_forget()
-            
-            # Ukryj Greedy
-            self.greedy_info_label.pack_forget()
-            self.greedy_info.pack_forget()
-            
-            # Pokaż Exact
-            self.exact_section_label.pack(anchor="w", pady=(15, 10))
-            self.exact_warning.pack(anchor="w", pady=10)
-            self.exact_info.pack(anchor="w", pady=10)
-    
     def _on_browse(self):
-        """Callback gdy kliknięty Browse"""
         if self.on_instance_load:
-            result = self.on_instance_load()
-            if result:
-                file_path, jobs, machines = result
-                self.instance_file.delete(0, "end")
-                self.instance_file.insert(0, file_path)
-                self.instance_loaded = True
-    
-    def get_parameters(self):
-        """Zwróć wszystkie parametry"""
-        algorithm = self.selected_algorithm
-        
-        if algorithm == "genetic":
-            params = {"algorithm": "genetic"}
-            for key, entry in self.params.items():
-                try:
-                    if key in ["population_size", "generations", "tournament_size", "seed"]:
-                        params[key] = int(entry.get())
-                    else:
-                        params[key] = float(entry.get())
-                except ValueError:
-                    return None
-            return params
-        elif algorithm == "greedy":
-            return {"algorithm": "greedy"}
-        elif algorithm == "exact":
-            return {"algorithm": "exact"}
-        
-        return None
-    
-    def get_algorithm(self):
-        """Zwróć wybrany algorytm"""
-        return self.selected_algorithm
+            res = self.on_instance_load()
+            if res:
+                self.instance_file.configure(state="normal"); self.instance_file.delete(0, "end"); self.instance_file.insert(0, res[0]); self.instance_file.configure(state="readonly"); self.instance_loaded = True
+
+    def get_algorithm(self): return self.selected_algorithm

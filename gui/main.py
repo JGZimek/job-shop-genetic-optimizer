@@ -1,11 +1,10 @@
 import customtkinter as ctk
-import tkinter as tk
-from tkinter import filedialog, messagebox
 import threading
 import sys
 import os
 from pathlib import Path
 import time
+from datetime import datetime
 
 # DLL path setup
 if sys.platform == "win32":
@@ -16,6 +15,18 @@ if sys.platform == "win32":
 # Add build/python_module to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "build" / "python_module"))
 
+# Add gui directory to path
+sys.path.insert(0, str(Path(__file__).parent))
+
+# Importy GUI
+from widgets import HeaderFrame, SidebarFrame, ConsoleFrame, GanttFrame, ButtonsFrame
+from config import WINDOW_WIDTH, WINDOW_HEIGHT
+from utils.export import ScheduleExporter
+
+# --- NOWE IMPORTY DIALOGÓW ---
+from gui.dialogs.status_dialog import StatusDialog
+from gui.dialogs.export_dialog import ExportDialog
+
 # Try to import bindings
 try:
     import bindings as jb
@@ -23,13 +34,6 @@ try:
 except ImportError as e:
     BINDINGS_AVAILABLE = False
     IMPORT_ERROR = str(e)
-
-# Add gui directory to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from widgets import HeaderFrame, SidebarFrame, ConsoleFrame, GanttFrame, ButtonsFrame
-from config import WINDOW_WIDTH, WINDOW_HEIGHT
-from utils.export import ScheduleExporter
 
 
 class JobShopApp(ctk.CTk):
@@ -46,19 +50,20 @@ class JobShopApp(ctk.CTk):
         self.best_solution = None
         self.is_running = False
         
+        # Obsługa błędu importu przy starcie (StatusDialog zamiast messagebox)
         if not BINDINGS_AVAILABLE:
-            messagebox.showerror(
-                "Error",
-                f"Failed to import bindings!\n\n{IMPORT_ERROR}\n\n"
-                "Make sure you:\n"
-                "1. Ran: cmake --build --preset=default\n"
-                "2. Have build/python_module/bindings.pyd"
-            )
+            self.after(200, lambda: StatusDialog(
+                self, 
+                "Critical Error", 
+                "Failed to import C++ bindings. The application cannot function correctly.",
+                details=f"{IMPORT_ERROR}\n\nMake sure you compiled the project using CMake.",
+                type_="error"
+            ))
         
         self.create_widgets()
     
     def create_widgets(self):
-        """Create UI layout"""
+        """Create UI layout - ORYGINALNY KOD BEZ ZMIAN"""
         self.configure(fg_color="#0d1117")
         
         # --- HEADER ---
@@ -139,6 +144,7 @@ class JobShopApp(ctk.CTk):
     
     def load_instance(self):
         """Load instance from file"""
+        from tkinter import filedialog
         file_path = filedialog.askopenfilename(
             initialdir="data/instances",
             filetypes=[
@@ -152,14 +158,6 @@ class JobShopApp(ctk.CTk):
         if not file_path:
             return None
         
-        file_ext = Path(file_path).suffix.lower()
-        if file_ext not in {'.txt', '.csv'}:
-            messagebox.showwarning(
-                "Unsupported Format",
-                f"Supported: .txt, .csv\nSelected: {file_ext}"
-            )
-            return None
-        
         try:
             file_name = Path(file_path).name
             self.header.update_status(f"Loading {file_name}...", "#ffaa00")
@@ -171,7 +169,7 @@ class JobShopApp(ctk.CTk):
             machines = self.instance.num_machines
             
             if jobs == 0 or machines == 0:
-                raise ValueError("Invalid instance")
+                raise ValueError("Instance contains 0 jobs or 0 machines.")
             
             seq_sol = jb.Solution()
             for j in range(jobs):
@@ -187,10 +185,12 @@ class JobShopApp(ctk.CTk):
             self.buttons.enable_optimize()
             
             return (file_path, jobs, machines)
-        
+            
         except Exception as e:
             error_msg = str(e)
-            messagebox.showerror("Error", f"Failed to load:\n{error_msg}")
+            # ZMIANA: StatusDialog zamiast messagebox
+            StatusDialog(self, "Load Error", f"Failed to load instance: {file_name}", details=error_msg, type_="error")
+            
             self.console.log_error(error_msg)
             self.header.update_status("Error", "#ff0000")
             self.instance = None
@@ -199,12 +199,15 @@ class JobShopApp(ctk.CTk):
     def run_optimization(self):
         """Run optimization in separate thread"""
         if not self.instance:
-            messagebox.showerror("Error", "Load instance first!")
+            # ZMIANA: StatusDialog
+            StatusDialog(self, "Action Required", "Please load an instance first.", type_="info")
             return
         
+        # ZMIANA: Pobieranie parametrów z obsługą błędów w Sidebarze
         params = self.sidebar.get_parameters()
-        if not params:
-            messagebox.showerror("Error", "Invalid parameters!")
+        
+        # Jeśli params == None, to znaczy że Sidebar już wyświetlił błąd/ostrzeżenie
+        if params is None:
             return
         
         self.is_running = True
@@ -270,10 +273,11 @@ class JobShopApp(ctk.CTk):
     def export_schedule(self):
         """Export schedule"""
         if not self.best_solution or not self.instance:
-            messagebox.showwarning("Warning", "No results to export!")
+            # ZMIANA: StatusDialog
+            StatusDialog(self, "No Data", "No solution to export. Run optimization first.", type_="info")
             return
         
-        from gui.dialogs.export_dialog import ExportDialog
+        # Otwieramy ExportDialog (ten z pliku export_dialog.py, którego nie ruszamy)
         dialog = ExportDialog(self)
         self.wait_window(dialog)
         
@@ -285,10 +289,10 @@ class JobShopApp(ctk.CTk):
         
         try:
             exported = []
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             
             if result['csv']:
-                from datetime import datetime
-                filename = f"schedule_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                filename = f"schedule_{timestamp}.csv"
                 path = ScheduleExporter.export_to_csv(
                     self.instance, 
                     self.best_solution, 
@@ -298,8 +302,7 @@ class JobShopApp(ctk.CTk):
                 self.console.insert_log(f"Exported: {Path(path).name}\n")
             
             if result['json']:
-                from datetime import datetime
-                filename = f"schedule_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                filename = f"schedule_{timestamp}.json"
                 path = ScheduleExporter.export_to_json(
                     self.instance, 
                     self.best_solution, 
@@ -309,8 +312,7 @@ class JobShopApp(ctk.CTk):
                 self.console.insert_log(f"Exported: {Path(path).name}\n")
             
             if result['png'] and self.gantt.fig:
-                from datetime import datetime
-                filename = f"gantt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                filename = f"gantt_{timestamp}.png"
                 path = ScheduleExporter.export_gantt_image(
                     self.gantt.fig, 
                     output_path=save_path / filename
@@ -319,11 +321,27 @@ class JobShopApp(ctk.CTk):
                 self.console.insert_log(f"Exported: {Path(path).name}\n")
             
             self.header.update_status("Exported!", "#00ff00")
-            messagebox.showinfo("Success", f"Exported {len(exported)} files")
+            
+            # ZMIANA: StatusDialog Sukces
+            files_list = "\n".join([f"• {x}" for x in exported])
+            StatusDialog(
+                self, 
+                "Export Successful", 
+                f"Successfully saved {len(exported)} files to folder:", 
+                details=f"{save_path}\n\n{files_list}", 
+                type_="success"
+            )
             
         except Exception as e:
             self.console.insert_log(f"Export error: {str(e)}\n")
-            messagebox.showerror("Error", f"Export failed:\n{str(e)}")
+            # ZMIANA: StatusDialog Błąd
+            StatusDialog(
+                self, 
+                "Export Failed", 
+                "An error occurred during file export.", 
+                details=str(e), 
+                type_="error"
+            )
     
     def clear_results(self):
         """Clear all results"""

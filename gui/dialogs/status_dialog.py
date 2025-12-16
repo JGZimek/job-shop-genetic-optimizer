@@ -18,31 +18,27 @@ class StatusDialog(ctk.CTkToplevel):
         self.result = False
         self.type_ = type_
         
-        # Konfiguracja stylu
+        # Konfiguracja stylu (BEZ EMOJI)
         if type_ == "error":
             self.main_color = COLOR_ERROR
-            icon = "❌"
             btn_text = "OK"
             self.is_confirmation = False
         elif type_ == "warning":
             self.main_color = COLOR_WARNING
-            icon = "⚠️"
             btn_text = "Continue Anyway"
             self.is_confirmation = True
         elif type_ == "success":
             self.main_color = COLOR_SUCCESS
-            icon = "✅"
             btn_text = "OK"
             self.is_confirmation = False
         else: # info
             self.main_color = "#0078ff"
-            icon = "ℹ️"
             btn_text = "OK"
             self.is_confirmation = False
 
         self.title(title)
         # Dostosuj wysokość w zależności czy są detale
-        h = 350 if details else 220
+        h = 350 if details else 200
         self.geometry(f"420x{h}")
         self.resizable(False, False)
         self.transient(parent)
@@ -60,17 +56,27 @@ class StatusDialog(ctk.CTkToplevel):
         self.configure(fg_color=COLOR_BG_DARK)
         
         # --- UI ---
-        # Nagłówek
+        # Nagłówek (Tylko tytuł, bez ikony)
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
         header_frame.pack(pady=(20, 10))
         
-        ctk.CTkLabel(header_frame, text=icon, font=("Segoe UI", 24)).pack(side="left", padx=10)
-        ctk.CTkLabel(header_frame, text=title, font=("Segoe UI", 18, "bold"), text_color=self.main_color).pack(side="left")
+        ctk.CTkLabel(
+            header_frame, 
+            text=title, 
+            font=("Segoe UI", 18, "bold"), 
+            text_color=self.main_color
+        ).pack()
         
         # Wiadomość główna
-        ctk.CTkLabel(self, text=message, font=("Segoe UI", 13), wraplength=380, text_color="#e6edf3").pack(pady=5, padx=20)
+        ctk.CTkLabel(
+            self, 
+            text=message, 
+            font=("Segoe UI", 13), 
+            wraplength=380, 
+            text_color="#e6edf3"
+        ).pack(pady=5, padx=20)
         
-        # Detale (np. lista wyeksportowanych plików lub treść błędu)
+        # Detale (np. lista błędów)
         if details:
             details_frame = ctk.CTkScrollableFrame(
                 self, height=100, fg_color=COLOR_BG_LIGHT, 
@@ -78,15 +84,13 @@ class StatusDialog(ctk.CTkToplevel):
             )
             details_frame.pack(fill="both", expand=True, padx=25, pady=10)
             
-            # --- POPRAWKA TUTAJ ---
-            # Dodano wraplength=340, aby tekst łamał się wewnątrz ramki scrollowanej
             ctk.CTkLabel(
                 details_frame, 
                 text=details, 
                 font=("Consolas", 12), 
                 text_color=self.main_color, 
                 justify="left",
-                wraplength=340,  # <--- TO NAPRAWIA UCIĘTY TEKST
+                wraplength=340,  # Naprawa uciętego tekstu w detalach
                 anchor="w"
             ).pack(anchor="w", padx=5, pady=5, fill="x")
         
@@ -106,9 +110,9 @@ class StatusDialog(ctk.CTkToplevel):
             ).pack(side="right")
         else:
             ctk.CTkButton(
-                btn_frame, text="OK", fg_color=self.main_color, hover_color=COLOR_NORMAL, 
+                btn_frame, text=btn_text, fg_color=self.main_color, hover_color=COLOR_NORMAL, 
                 width=100, command=self._on_confirm
-            ).pack(side="right")
+            ).pack(side="right") # Pack right wygląda naturalniej
 
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
         self.wait_window()

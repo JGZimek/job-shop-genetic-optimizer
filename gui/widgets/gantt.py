@@ -35,56 +35,39 @@ class GanttFrame(ctk.CTkFrame):
         """Wyświetl placeholder zanim będzie pierwszy wykres"""
         self._clear_canvas()
         
-        # Utwórz figurę z placeholder
-        self.fig = Figure(figsize=(13, 6), dpi=100, facecolor='#1a1a1a')
+        # Kolory motywu (GitHub Dark - spójne z resztą aplikacji)
+        bg_color = "#161b22"
+        text_white = "#ffffff"
+        text_gray = "#8b949e"
+        accent_blue = "#58a6ff"
+
+        # Utwórz figurę z dopasowanym tłem
+        self.fig = Figure(figsize=(13, 6), dpi=100, facecolor=bg_color)
         self.ax = self.fig.add_subplot(111)
+        self.ax.set_facecolor(bg_color)
         
-        # Tekst
+        # Całkowite ukrycie osi (ramki)
+        self.ax.axis('off')
+        
+        # 1. Główny Tytuł (Teraz na środku w pionie)
         self.ax.text(
-            0.5, 0.7,
+            0.5, 0.60,
             "Welcome to Job Shop Optimizer",
             ha='center', va='center',
-            fontsize=24, color='#ffffff', weight='bold',
+            fontsize=24, color=text_white, weight='bold',
+            fontfamily='sans-serif',
             transform=self.ax.transAxes
         )
         
+        # 2. Stopka (Niebieski akcent)
         self.ax.text(
-            0.5, 0.55,
-            "1. Load an instance from 'Browse Files'",
-            ha='center', va='center',
-            fontsize=12, color='#8b949e',
-            transform=self.ax.transAxes
-        )
-        
-        self.ax.text(
-            0.5, 0.45,
-            "2. Adjust GA parameters if needed",
-            ha='center', va='center',
-            fontsize=12, color='#8b949e',
-            transform=self.ax.transAxes
-        )
-        
-        self.ax.text(
-            0.5, 0.35,
-            "3. Click 'Run Optimization'",
-            ha='center', va='center',
-            fontsize=12, color='#8b949e',
-            transform=self.ax.transAxes
-        )
-        
-        self.ax.text(
-            0.5, 0.20,
+            0.5, 0.40,
             "The Gantt Chart will appear here",
             ha='center', va='center',
-            fontsize=11, color='#0078ff', weight='bold',
+            fontsize=12, color=accent_blue, weight='bold',
+            fontfamily='sans-serif',
             transform=self.ax.transAxes
         )
-        
-        # Usuń osie
-        self.ax.set_xlim(0, 1)
-        self.ax.set_ylim(0, 1)
-        self.ax.axis('off')
-        self.ax.set_facecolor('#2a2a2a')
         
         # Osadź canvas
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.canvas_frame)

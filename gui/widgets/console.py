@@ -1,75 +1,117 @@
 import customtkinter as ctk
 from datetime import datetime
 
+# Paleta kolorów (Minimalistyczna)
+COLOR_TIMESTAMP = "#505050"  # Bardzo ciemny szary
+COLOR_TEXT = "#c9d1d9"       # Standardowy tekst
+COLOR_SUCCESS = "#3fb950"    # Zielony
+COLOR_WARNING = "#d29922"    # Pomarańczowy
+COLOR_ERROR = "#f85149"      # Czerwony
+COLOR_ACCENT = "#58a6ff"     # Niebieski
+COLOR_VALUE = "#a5d6ff"      # Jasnoniebieski
 
 class ConsoleFrame(ctk.CTkFrame):
-    """Konsola z logami"""
+    """
+    Konsola z logami - Wersja Compact & Crash-Free.
+    """
     
     def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
         
+        # Tytuł - zmniejszony padding
         title_label = ctk.CTkLabel(
             self,
-            text="Logs",
-            font=("Segoe UI", 14, "bold")
+            text="Activity Logs",
+            font=("Segoe UI", 12, "bold"),
+            text_color="#ffffff"
         )
-        title_label.pack(anchor="w", pady=(0, 10))
+        title_label.pack(anchor="w", pady=(0, 2), padx=5)
         
-        self.textbox = ctk.CTkTextbox(self, font=("Courier", 11))
-        self.textbox.pack(fill="both", expand=True)
+        # Textbox
+        self.textbox = ctk.CTkTextbox(
+            self, 
+            font=("Consolas", 11), # Mniejsza czcionka bazowa dla całej konsoli
+            fg_color="#0d1117",
+            text_color=COLOR_TEXT,
+            activate_scrollbars=True,
+            wrap="word" # Zawijanie słów
+        )
+        self.textbox.pack(fill="both", expand=True, padx=2, pady=2)
         
-        self.textbox.tag_config("info", foreground="#8b949e")
-        self.textbox.tag_config("success", foreground="#00ff00")
-        self.textbox.tag_config("warning", foreground="#ff9800")
-        self.textbox.tag_config("error", foreground="#ff3333")
-        self.textbox.tag_config("header", foreground="#0078ff")
-    
-    def insert_log(self, text, tag="info"):
-        """Wstaw log"""
+        # Konfiguracja tagów (USUNIĘTO parametr 'font' który powodował błąd)
+        self.textbox.tag_config("timestamp", foreground=COLOR_TIMESTAMP)
+        self.textbox.tag_config("normal", foreground=COLOR_TEXT)
+        self.textbox.tag_config("success", foreground=COLOR_SUCCESS)
+        self.textbox.tag_config("warning", foreground=COLOR_WARNING)
+        self.textbox.tag_config("error", foreground=COLOR_ERROR)
+        self.textbox.tag_config("header", foreground=COLOR_ACCENT) 
+        self.textbox.tag_config("value", foreground=COLOR_VALUE)
+
+        self.textbox.configure(state="disabled")
+
+    def _write(self, text, tag="normal"):
+        """Prywatna metoda do pisania"""
+        self.textbox.configure(state="normal")
         self.textbox.insert("end", text, tag)
+        self.textbox.configure(state="disabled")
         self.textbox.see("end")
-    
+
+    def _write_ts(self):
+        """Krótki timestamp"""
+        ts = datetime.now().strftime("%H:%M:%S")
+        self._write(f"[{ts}] ", "timestamp")
+
+    # --- PUBLIC API (Compact) ---
+
     def log_loaded(self, filename, jobs, machines, baseline):
-        """Log załadowania instancji"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.insert_log(f"[{timestamp}] ", "info")
-        self.insert_log(f"Loaded: {filename} | {jobs}x{machines} | Baseline: {baseline}\n", "success")
-    
+        """Log ładowania - Jedna linia"""
+        self._write_ts()
+        self._write(f"Loaded: {filename} ", "success")
+        self._write(f"({jobs}J x {machines}M) ", "value")
+        self._write(f"| Base: {baseline}\n", "normal")
+
     def log_algorithm_selected(self, algorithm):
-        """Log wyboru algorytmu"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.insert_log(f"[{timestamp}] ", "info")
-        self.insert_log(f"Algorithm: {algorithm}\n", "header")
-    
-    def log_ga_params(self, params):
-        """Log parametrów GA"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.insert_log(f"[{timestamp}] ", "info")
-        self.insert_log(
-            f"GA: pop={params['population_size']} gen={params['generations']} "
-            f"tour={params['tournament_size']} mut={params['mutation_prob']} seed={params['seed']}\n",
-            "header"
-        )
-    
+        pass 
+
+    def log_ga_params(self, p):
+        """Log parametrów - Jedna linia zamiast listy"""
+        self._write_ts()
+        self._write("GA Config: ", "header")
+        # Skrócony zapis w jednej linii
+        info = f"Pop={p['population_size']} Gen={p['generations']} Tour={p['tournament_size']} Mut={p['mutation_prob']:.2f} Seed={p['seed']}"
+        self._write(f"{info}\n", "value")
+
     def log_running(self, algorithm):
-        """Log uruchamiania"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.insert_log(f"[{timestamp}] ", "info")
-        self.insert_log(f"Running {algorithm}...\n", "warning")
-    
+        """Log startu"""
+        self._write_ts()
+        self._write(f"Started: {algorithm}...\n", "warning")
+
     def log_completed(self, makespan, elapsed_time):
-        """Log ukończenia"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.insert_log(f"[{timestamp}] ", "info")
-        self.insert_log(f"Completed: {elapsed_time:.2f}s | Makespan: {makespan}\n", "success")
-        self.insert_log("\n", "info")
-    
+        """Log wyniku - Jedna linia"""
+        self._write_ts()
+        self._write("Done: ", "success")
+        self._write(f"Makespan={makespan} ", "header")
+        self._write(f"({elapsed_time:.2f}s)\n", "normal")
+
     def log_error(self, error_msg):
         """Log błędu"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.insert_log(f"[{timestamp}] ", "info")
-        self.insert_log(f"Error: {error_msg}\n", "error")
-    
+        self._write_ts()
+        self._write(f"ERROR: {error_msg}\n", "error")
+
+    def insert_log(self, text, tag="normal"):
+        """Dla exportu i innych"""
+        # Ignoruj puste nowe linie, żeby oszczędzać miejsce
+        if text.strip() == "": return
+        
+        self._write_ts()
+        if "Exported" in text:
+            self._write(text.strip() + "\n", "success")
+        elif "error" in text.lower():
+            self._write(text.strip() + "\n", "error")
+        else:
+            self._write(text.strip() + "\n", tag)
+
     def clear(self):
-        """Wyczyść logi"""
+        self.textbox.configure(state="normal")
         self.textbox.delete("1.0", "end")
+        self.textbox.configure(state="disabled")

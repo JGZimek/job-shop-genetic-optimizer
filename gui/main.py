@@ -198,18 +198,45 @@ class JobShopApp(ctk.CTk):
     
     def run_optimization(self):
         """Run optimization in separate thread"""
+        # 1. Sprawdź czy instancja jest załadowana
         if not self.instance:
-            # ZMIANA: StatusDialog
             StatusDialog(self, "Action Required", "Please load an instance first.", type_="info")
             return
         
-        # ZMIANA: Pobieranie parametrów z obsługą błędów w Sidebarze
+        # 2. Pobierz parametry (Sidebar sam obsłuży walidację pól)
         params = self.sidebar.get_parameters()
-        
-        # Jeśli params == None, to znaczy że Sidebar już wyświetlił błąd/ostrzeżenie
         if params is None:
-            return
+            return 
         
+        # --- NOWOŚĆ: OSTRZEŻENIE DLA ALGORYTMU EXACT ---
+        if params.get('algorithm') == 'exact':
+            # Obliczamy całkowitą liczbę operacji
+            n_jobs = len(self.instance.jobs)
+            n_machines = self.instance.num_machines
+            total_ops = n_jobs * n_machines
+            
+            # Próg bezpieczeństwa: np. 12 operacji (np. 4x3). 
+            # Powyżej tego A* / Branch&Bound robi się ekstremalnie wolny.
+            if total_ops > 12:
+                dialog = StatusDialog(
+                    self,
+                    title="High Complexity Warning",
+                    message=f"Exact algorithm is NOT recommended for this instance size ({n_jobs}x{n_machines}).",
+                    details=(
+                        "Exact algorithms have exponential time complexity.\n\n"
+                        f"This instance has {total_ops} operations. Running an exact solver "
+                        "will likely cause the application to FREEZE strictly or CRASH due to memory exhaustion.\n\n"
+                        "Recommended: Use 'Genetic' or 'Greedy' instead."
+                    ),
+                    type_="warning"
+                )
+                
+                # Jeśli użytkownik kliknie "Cancel", przerywamy
+                if not dialog.result:
+                    return
+        # -----------------------------------------------
+
+        # 3. Uruchomienie wątku (jeśli wszystko OK)
         self.is_running = True
         self.buttons.disable_optimize()
         

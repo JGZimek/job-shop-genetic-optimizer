@@ -79,7 +79,8 @@ class GanttFrame(ctk.CTkFrame):
         
         # Setup figury
         self.fig = Figure(figsize=(10, 6), dpi=100, facecolor=BG_COLOR)
-        self.fig.subplots_adjust(left=0.08, right=0.98, top=0.92, bottom=0.15)
+        # Zwiększyłem left do 0.1, żeby etykiety maszyn (M0, M1...) się nie ucinały
+        self.fig.subplots_adjust(left=0.1, right=0.98, top=0.92, bottom=0.15)
         
         self.ax = self.fig.add_subplot(111)
         self.ax.set_facecolor(PLOT_AREA_BG) # Ciemniejsze tło obszaru danych
@@ -208,12 +209,15 @@ class GanttFrame(ctk.CTkFrame):
         # Oś Y
         self.ax.set_ylabel('Machines', color=AXIS_COLOR, fontsize=10, labelpad=8)
         self.ax.set_yticks(range(instance.num_machines))
+        # Ustawiamy etykiety, ale ważne jest tick_params poniżej!
         self.ax.set_yticklabels([f"M{i}" for i in range(instance.num_machines)], color=TEXT_COLOR, fontsize=9, fontweight='bold')
         self.ax.set_ylim(-0.6, instance.num_machines - 0.4)
         
-        # Stylizacja ticków
+        # Stylizacja ticków - POPRAWKA:
         self.ax.tick_params(axis='x', colors=AXIS_COLOR, labelsize=9)
-        self.ax.tick_params(axis='y', colors=BG_COLOR, length=0) # Ukryj kreski Y
+        # TU BYŁ BŁĄD: colors=BG_COLOR chował też tekst. 
+        # Zmieniamy na labelcolor=TEXT_COLOR i length=0 (żeby ukryć same kreski)
+        self.ax.tick_params(axis='y', length=0, labelcolor=TEXT_COLOR) 
         
         # Usunięcie ramki (Spines)
         for spine in self.ax.spines.values():

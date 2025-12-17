@@ -67,8 +67,8 @@ class ConsoleFrame(ctk.CTkFrame):
         """Log ładowania - Jedna linia"""
         self._write_ts()
         self._write(f"Loaded: {filename} ", "success")
-        self._write(f"({jobs}J x {machines}M) ", "value")
-        self._write(f"| Base: {baseline}\n", "normal")
+        self._write(f"({jobs}J x {machines}M\n) ", "value")
+        # self._write(f"| Base: {baseline}\n", "normal")
 
     def log_algorithm_selected(self, algorithm):
         pass 
